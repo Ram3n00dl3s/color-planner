@@ -43,9 +43,15 @@ const ALL_PALETTE_COLORS = [
 const profileHex = (profile?: CalendarProfile | null): string =>
 	resolveAccentHex(profile?.color) || DEFAULT_ACCENT_HEX;
 
-/** Does a swatch name describe the colour a tile is already wearing? */
+/** How many swatches the tile menu's quick row shows. It holds this length whatever
+	the profiles withhold, so the row never opens up a gap. */
+const QUICK_SWATCH_COUNT = RECENT_COLORS.length;
+
+/** Does a swatch describe the colour a tile is already wearing? Matched exactly, or
+	through the `pastel-` prefix the older palette used. A loose "contains" test was
+	used here before, which let a `bluegrey` tile light up the `blue` swatch. */
 const isCurrentSwatch = (name: string, colorTheme?: string): boolean =>
-	colorTheme === name || colorTheme === `pastel-${name}` || (colorTheme || '').includes(name);
+	colorTheme === name || colorTheme === `pastel-${name}`;
 
 // Helper component for Draggable Event Block
 const EventBlock = ({
@@ -476,20 +482,33 @@ const EventBlock = ({
 
 	// A calendar profile's colour is what identifies it on the grid, so those swatches
 	// are withheld from the tile's own picker: a tile wears one of those colours by
-	// attaching the profile, not by picking the swatch here. A tile that already wears
-	// a claimed colour keeps its swatch on show, so the row still reflects what the
-	// tile is actually set to instead of reading as though nothing were selected.
+	// attaching the profile, and never by picking the swatch here. One colour belongs
+	// to one of the two settings, never to both — so the withholding is absolute, with
+	// no exception for the colour the tile happens to be wearing. Attaching a profile
+	// sets the tile to the profile's colour, and that colour must not then reappear as
+	// a swatch in this row with a tick of its own.
 	const claimedColors = useMemo(
 		() => new Set(calendarProfiles.map(p => p.color).filter(Boolean) as string[]),
 		[calendarProfiles]
 	);
-	const recentColors = useMemo(
-		() => RECENT_COLORS.filter(c => !claimedColors.has(c) || isCurrentSwatch(c, event.colorTheme)),
-		[claimedColors, event.colorTheme]
-	);
+
+	// The quick row keeps its shape: whatever the profiles withhold is replaced from
+	// the palette behind the droplet, taken in palette order and skipping anything
+	// already in the row, so the row is never short and never leaves a gap between
+	// swatches. Only if the palette itself ran out would the row show fewer.
+	const recentColors = useMemo(() => {
+		const row = RECENT_COLORS.filter(c => !claimedColors.has(c));
+		for (const c of ALL_PALETTE_COLORS) {
+			if (row.length >= QUICK_SWATCH_COUNT) break;
+			if (claimedColors.has(c) || row.includes(c)) continue;
+			row.push(c);
+		}
+		return row.slice(0, QUICK_SWATCH_COUNT);
+	}, [claimedColors]);
+
 	const paletteColors = useMemo(
-		() => ALL_PALETTE_COLORS.filter(c => !claimedColors.has(c) || event.colorTheme === c),
-		[claimedColors, event.colorTheme]
+		() => ALL_PALETTE_COLORS.filter(c => !claimedColors.has(c)),
+		[claimedColors]
 	);
 
 	const allList = cleanDescription && tileItems.length > 0
