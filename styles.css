@@ -983,12 +983,17 @@
 	border-bottom: none;
 }
 
+/* One divider spec for the whole pane: a single hairline in the theme's own border
+   colour, inset to the section's 24px content line so it begins and ends where the
+   text does. The option rows, the profile row under the title and the stack of
+   options below it are all drawn with this same line, so every rule in the pane
+   reads as one family. */
 .pane-section:not(:last-child)::after {
 	content: '';
 	position: absolute;
 	bottom: 0;
-	left: 16px;
-	right: 16px;
+	left: 24px;
+	right: 24px;
 	height: 1px;
 	background-color: var(--background-modifier-border);
 }
@@ -1001,13 +1006,16 @@
 
 /* ---------- The profile row, tucked under the event title ---------- */
 /* The swatch sits immediately to the LEFT of the attached profile's name, on its
-   own line below the title. Flush with the section's own left padding so the
-   swatch lines up with the icons in every row below (clock, globe, pin, …), and
-   nudged down so it sits closer to the separator line that closes this section. */
+   own line below the title. The row is closed off from the title by the pane's
+   standard divider — the same hairline the section below it ends with — and it is
+   flush with the section's own left padding so the swatch lines up with the icons
+   in every row below (clock, globe, pin, …). */
 .title-profile-row {
 	display: flex;
 	align-items: center;
 	gap: 8px;
+	border-top: 1px solid var(--background-modifier-border);
+	margin-top: 10px;
 	padding: 10px 0 0 0;
 	min-height: 20px;
 }
@@ -1055,10 +1063,11 @@
 	transform: translateY(-1px);
 }
 
-/* The profile name next to the swatch. Only barely dimmer than the event title
-   (same colour at a slightly reduced opacity), just a touch smaller than it. */
+/* The profile name next to the swatch. Dimmer than the event title (the same colour
+   at a reduced opacity) and set at the same 14px as the option rows below it, so the
+   swatch reads as the first line of that column rather than as part of the title. */
 .title-profile-hint {
-	font-size: 15px;
+	font-size: 14px;
 	font-weight: 400;
 	line-height: 1.35;
 	color: var(--text-normal);
@@ -1077,9 +1086,11 @@
 	opacity: 0.34;
 }
 
+/* A shade down from the original 18px at 500: the title still leads the pane, but it
+   no longer overpowers the rows beneath it. */
 .pane-title-input {
-	font-size: 18px;
-	font-weight: 500;
+	font-size: 17px;
+	font-weight: 400;
 	border: 1px solid transparent !important;
 	background: transparent !important;
 	color: var(--text-normal);
