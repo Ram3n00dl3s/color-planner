@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { format } from 'date-fns';
 import { CustomRepeat } from '../../types';
+import { SleekMiniCalendar } from './SleekMiniCalendar';
 
 interface CustomRepeatModalProps {
     initial?: CustomRepeat | null;
@@ -33,6 +35,15 @@ const toDateInputValue = (date: Date): string => {
     return `${y}-${m}-${d}`;
 };
 
+/* The end date travels as a `YYYY-MM-DD` string, but the month panel wants a Date.
+   Parsed field by field rather than with `new Date(value)`, which reads a bare date
+   as UTC midnight and can therefore land on the day before, west of Greenwich. */
+const fromDateInputValue = (value: string): Date => {
+    const [y, m, d] = value.split('-').map(Number);
+    if (!y || !m || !d) return new Date();
+    return new Date(y, m - 1, d);
+};
+
 export const CustomRepeatModal = ({ initial, accentColor, onCancel, onDone }: CustomRepeatModalProps) => {
     const [interval, setIntervalValue] = useState<number>(initial?.interval ?? 1);
     const [unit, setUnit] = useState<CustomRepeat['unit']>(initial?.unit ?? 'week');
@@ -41,16 +52,61 @@ export const CustomRepeatModal = ({ initial, accentColor, onCancel, onDone }: Cu
     const [endDate, setEndDate] = useState<string>(initial?.endDate ?? toDateInputValue(new Date()));
     const [count, setCount] = useState<number>(initial?.count ?? 4);
 
-    // Escape closes the dialog; stop key propagation so Obsidian hotkeys
-    // don't fire while it is open.
+    // The end date is chosen from our own month panel rather than the browser's date
+    // input, so the dialog has to hold whether that panel is open and which month it
+    // is showing. It opens on the month of the date currently chosen.
+    const [pickerOpen, setPickerOpen] = useState(false);
+    const [pickerMonth, setPickerMonth] = useState<Date>(() => fromDateInputValue(initial?.endDate ?? toDateInputValue(new Date())));
+    const dateWrapRef = useRef<HTMLDivElement | null>(null);
+    const datePopoverRef = useRef<HTMLDivElement | null>(null);
+
+    // Escape backs out one step at a time: the month panel first, then the dialog.
+    // Key propagation is stopped so Obsidian hotkeys don't fire while it is open.
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') onCancel();
+            if (e.key === 'Escape') {
+                if (pickerOpen) {
+                    setPickerOpen(false);
+                    e.stopPropagation();
+                    return;
+                }
+                onCancel();
+            }
             e.stopPropagation();
         };
         window.addEventListener('keydown', onKey, true);
         return () => window.removeEventListener('keydown', onKey, true);
-    }, [onCancel]);
+    }, [onCancel, pickerOpen]);
+
+    // A click anywhere outside the date box closes the month panel. Capture phase, so
+    // an inner handler stopping propagation cannot hold it open.
+    useEffect(() => {
+        if (!pickerOpen) return;
+        const handlePointerDown = (e: PointerEvent) => {
+            const target = e.target as HTMLElement;
+            if (!target.closest('.repeat-modal-date-wrap')) setPickerOpen(false);
+        };
+        window.addEventListener('pointerdown', handlePointerDown, true);
+        return () => window.removeEventListener('pointerdown', handlePointerDown, true);
+    }, [pickerOpen]);
+
+    // The panel is as tall as the duplicate calendar's, and the date box sits in the
+    // middle of the dialog: it hangs below the box by default and flips above it on
+    // the rare short window where there is more room that way. Measured after layout,
+    // so the panel can never paint in one place and then jump to another.
+    useLayoutEffect(() => {
+        if (!pickerOpen) return;
+        const wrap = dateWrapRef.current;
+        const panel = datePopoverRef.current;
+        if (!wrap || !panel) return;
+        const wrapRect = wrap.getBoundingClientRect();
+        const panelH = panel.offsetHeight || 330;
+        const spaceBelow = window.innerHeight - wrapRect.bottom - 12;
+        const spaceAbove = wrapRect.top - 12;
+        const openUp = spaceBelow < panelH && spaceAbove > spaceBelow;
+        panel.style.top = openUp ? 'auto' : 'calc(100% + 6px)';
+        panel.style.bottom = openUp ? 'calc(100% + 6px)' : 'auto';
+    }, [pickerOpen]);
 
     const toggleWeekday = (value: number) => {
         setWeekdays(prev => prev.includes(value)
@@ -140,13 +196,39 @@ export const CustomRepeatModal = ({ initial, accentColor, onCancel, onDone }: Cu
                         <span className="repeat-radio-dot" />
                         <span>On</span>
                     </button>
-                    <input
-                        type="date"
-                        className="repeat-modal-date"
-                        value={endDate}
-                        onFocus={() => setEnds('on')}
-                        onChange={(e) => { setEndDate(e.target.value); setEnds('on'); }}
-                    />
+                    {/* The date box opens a month panel of our own — the very same one
+                        the duplicate calendar shows — instead of the browser's date
+                        picker. The whole box is the control, so a click anywhere in it
+                        opens the panel. */}
+                    <div className="repeat-modal-date-wrap" ref={dateWrapRef}>
+                        <button
+                            type="button"
+                            className="repeat-modal-date repeat-date-btn"
+                            aria-expanded={pickerOpen}
+                            onClick={() => {
+                                setEnds('on');
+                                setPickerMonth(fromDateInputValue(endDate));
+                                setPickerOpen(prev => !prev);
+                            }}
+                        >
+                            <span>{format(fromDateInputValue(endDate), 'MMM d, yyyy')}</span>
+                            <svg className="repeat-date-caret" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        {pickerOpen && (
+                            <div className="repeat-date-popover" ref={datePopoverRef}>
+                                <SleekMiniCalendar
+                                    month={pickerMonth}
+                                    onMonthChange={setPickerMonth}
+                                    selected={fromDateInputValue(endDate)}
+                                    onSelect={(day) => {
+                                        setEndDate(toDateInputValue(day));
+                                        setEnds('on');
+                                        setPickerOpen(false);
+                                    }}
+                                />
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <div className="repeat-end-row">

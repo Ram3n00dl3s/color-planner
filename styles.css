@@ -1470,6 +1470,77 @@
 	font-weight: 600;
 }
 
+/* The dialog's end date is chosen from a month panel of our own rather than the
+   browser's native date picker — and the panel is deliberately the very same one the
+   duplicate calendar shows while an event is being copied to another day: same
+   `sleek-dup-cal` classes, same surface, same header, strip and cells. The only
+   differences are that it hangs off the date box instead of sitting beside a tile,
+   and that its days respond to a click. The whole date box is the control, so a click
+   anywhere in it opens the panel. */
+.repeat-modal-date-wrap {
+	position: relative;
+	flex: 1;
+	min-width: 0;
+}
+
+.repeat-date-btn {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	width: 100%;
+	font-family: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.repeat-date-caret {
+	flex-shrink: 0;
+	color: var(--text-muted);
+}
+
+.repeat-date-popover {
+	position: absolute;
+	top: calc(100% + 6px);
+	left: auto;
+	right: 0;
+	z-index: 40;
+}
+
+/* The shared panel carries absolute coordinates for the duplicate flow; here the
+   popover is what is placed, so the panel itself lies flat inside it. */
+.repeat-date-popover .sleek-dup-cal {
+	position: static;
+	top: auto;
+	left: auto;
+	width: 292px;
+	max-width: none;
+}
+
+/* The picker's days are buttons, where the duplicate panel's are plain cells: strip
+   the button's own chrome, then give the day under the pointer a hover wash and the
+   chosen day the same neutral wash plus soft inset ring the duplicate panel gives its
+   target. Scoped to the picker panel rather than to this dialog, so the panel keeps
+   its behaviour wherever it is placed. No accent, no coloured border. */
+.sleek-mini-cal .sleek-dup-cal-day {
+	border: none;
+	background: transparent;
+	padding: 0;
+	font-family: inherit;
+	cursor: pointer;
+	outline: none;
+}
+
+.sleek-mini-cal .sleek-dup-cal-day:hover {
+	background: var(--background-modifier-hover);
+}
+
+.sleek-mini-cal .sleek-dup-cal-day.is-selected {
+	background: var(--background-modifier-hover);
+	font-weight: 700;
+	box-shadow: inset 0 0 0 1.5px var(--background-modifier-border-hover, var(--background-modifier-border));
+}
+
 .details-section {
 	display: flex;
 	flex-direction: column;
