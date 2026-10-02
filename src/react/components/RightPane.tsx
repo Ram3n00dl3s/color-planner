@@ -50,6 +50,10 @@ const ALL_END_TIME_SLOTS = [
 	{ hour: 23, min: 59 }
 ];
 
+/* Reminder lead times. The stored values are the ones the pane has always used; the
+	  menu simply spells them out as rows instead of native options. */
+const REMINDER_OPTIONS = ['10min before', '30min before', '1h before'];
+
 
 const InlineMiniCalendar = ({ currentDate, onSelect, accentColor, timeZone, events }: { currentDate: Date, onSelect: (date: Date) => void, accentColor?: string | null, timeZone?: string, events?: CalendarEvent[] }) => {
 	const [month, setMonth] = useState(currentDate);
@@ -185,7 +189,7 @@ export const RightPane = ({ event, onClose, onUpdate, onDateSelect, onDelete, pl
 	const [editingTodoId, setEditingTodoId] = useState<string | null>(null);
 	const [editingTodoText, setEditingTodoText] = useState<string>('');
 	const [miniCalendarMonth, setMiniCalendarMonth] = useState(new Date());
-	const [openDropdown, setOpenDropdown] = useState<'none' | 'start' | 'end' | 'date' | 'color' | 'timezone' | 'repeat'>('none');
+	const [openDropdown, setOpenDropdown] = useState<'none' | 'start' | 'end' | 'date' | 'color' | 'timezone' | 'repeat' | 'reminders'>('none');
 	const [isAttachmentDragOver, setIsAttachmentDragOver] = useState(false);
 	const [showCustomRepeat, setShowCustomRepeat] = useState(false);
 	const titleInputRef = useRef<HTMLTextAreaElement>(null);
@@ -1895,12 +1899,34 @@ export const RightPane = ({ event, onClose, onUpdate, onDateSelect, onDelete, pl
 						<svg className="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
 						<span>Reminders</span>
 					</div>
+					{/* The reminder lead time opens a menu of our own rather than the operating
+					    system's native select popup (which on macOS is a plain system menu that
+					    ignores the app's styling). It is the same row-and-menu pair the time
+					    zone and repeat rows use, so it inherits their hover, selected and
+					    divider-free treatment; the one difference is that the menu is anchored
+					    upward, because this row sits at the very foot of the pane and would
+					    otherwise open off the bottom edge. */}
 					<div className="reminders-dropdown-row">
-						<select className="minimal-select" value={reminders} onChange={e => setReminders(e.target.value)}>
-							<option value="10min before">10min before</option>
-							<option value="30min before">30min before</option>
-							<option value="1h before">1h before</option>
-						</select>
+						<div
+							className="event-option-row reminders-option-row"
+							onClick={() => setOpenDropdown(prev => prev === 'reminders' ? 'none' : 'reminders')}
+						>
+							<span className="event-option-label">{reminders}</span>
+							<svg className="event-option-trailing" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+							{openDropdown === 'reminders' && (
+								<div className="event-option-dropdown reminders-dropdown-menu" onClick={(e) => e.stopPropagation()}>
+									{REMINDER_OPTIONS.map(opt => (
+										<div
+											key={opt}
+											className={`event-option-dropdown-item ${reminders === opt ? 'is-selected' : ''}`}
+											onClick={() => { setReminders(opt); setOpenDropdown('none'); }}
+										>
+											{opt}
+										</div>
+									))}
+								</div>
+							)}
+						</div>
 					</div>
 				</div>
 			</div>

@@ -1794,27 +1794,9 @@ input[type="text"].todo-add-input.has-value,
 	border-radius: 4px;
 }
 
-.minimal-select {
-	background: transparent;
-	border: none;
-	color: var(--text-normal);
-	font-size: 14px;
-	outline: none;
-	cursor: pointer;
-	padding: 2px 4px;
-	border-radius: 4px;
-	transition: all 0.15s ease;
-}
-
-.minimal-select:hover {
-	color: var(--text-normal);
-}
-
-.minimal-select:disabled {
-	color: var(--text-faint);
-	opacity: 1;
-	cursor: default;
-}
+/* (retired) `.minimal-select` lived here. The reminders lead time was its last user;
+   it now uses the shared `.event-option-row` picker so the menu is ours to style
+   rather than the operating system's, and the rules have gone with it. */
 
 .status-row {
 	display: flex;
@@ -1835,6 +1817,23 @@ input[type="text"].todo-add-input.has-value,
 
 .reminders-dropdown-row {
 	margin-left: 32px;
+}
+
+/* The reminder lead time is a picker of our own rather than a native <select>, so it
+   opens the same menu the time zone and repeat rows do — the one difference being
+   that its menu is anchored upward, since this row sits at the very foot of the pane
+   and would otherwise open off the bottom edge. The row is kept a little shorter than
+   the option rows above it (there is nothing beside it to line up with) and carries
+   no divider, as there is no row after it to separate from. */
+.reminders-option-row {
+	padding: 6px 0;
+	border-bottom: none;
+}
+
+.reminders-dropdown-menu {
+	top: auto;
+	bottom: calc(100% + 6px);
+	min-width: 200px;
 }
 
 /* ---------------- Calendar profiles (right pane) ---------------- */
