@@ -135,6 +135,9 @@ const EventBlock = ({
 	const assignProfile = (profile: CalendarProfile) => {
 		if (!onUpdateEvent) return;
 		const isActive = event.profileId === profile.id;
+		// Attaching a profile takes the tile's colour over, so a palette the user had
+		// open is dismissed at the same moment — the swatch row locks with the attach.
+		if (!isActive) setShowColorPicker(false);
 		onUpdateEvent({
 			...event,
 			profileId: isActive ? undefined : profile.id,
@@ -511,6 +514,13 @@ const EventBlock = ({
 		[claimedColors]
 	);
 
+	// Attaching a profile hands the tile's colour over to that profile, so while one is
+	// attached the tile's own swatches are held shut: they dim, they stop responding,
+	// and the droplet will not open the palette. Detaching the profile — clicking its
+	// swatch again — hands the colour back and the row comes alive.
+	const activeProfile = calendarProfiles.find(p => p.id === event.profileId) || null;
+	const colorsLocked = Boolean(activeProfile);
+
 	const allList = cleanDescription && tileItems.length > 0
 		? [{ title: cleanDescription, completed: false }, ...tileItems]
 		: tileItems;
@@ -617,22 +627,24 @@ const EventBlock = ({
 						gap: '2px'
 					}}
 				>
-					{/* Recent Colors Row with Swatch Selector as the last option. Lives are the
-					    colours no profile has claimed — see `claimedColors` above. */}
+					{/* Recent Colors Row with Swatch Selector as the last option. Holds the
+					    colours no profile has claimed — see `claimedColors` above — topped up
+					    from the palette so the row is always full. While a profile is attached
+					    the whole row is held shut: the tile's colour belongs to it then. */}
 					<div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px', padding: '4px 6px 8px 6px' }}>
 						{recentColors.map(c => {
 							const isSelected = isCurrentSwatch(c, event.colorTheme);
+							const lockTitle = 'Detach the calendar profile to choose a colour';
 							return (
 								<div
 									key={c}
 									className={`event-${c}`}
 									onClick={(e) => {
 										e.stopPropagation();
-										if (onUpdateEvent) {
-											onUpdateEvent({ ...event, colorTheme: c });
-										}
+										if (colorsLocked || !onUpdateEvent) return;
+										onUpdateEvent({ ...event, colorTheme: c });
 									}}
-									title={c}
+									title={colorsLocked ? `${c} — ${lockTitle}` : c}
 									style={{
 										width: '20px',
 										height: '20px',
@@ -640,14 +652,15 @@ const EventBlock = ({
 										display: 'flex',
 										alignItems: 'center',
 										justifyContent: 'center',
-										cursor: 'pointer',
+										cursor: colorsLocked ? 'default' : 'pointer',
+										opacity: colorsLocked ? 0.3 : 1,
 										border: isSelected ? '2px solid var(--text-normal, #ffffff)' : '2px solid transparent',
 										boxShadow: isSelected ? '0 0 0 1px rgba(0, 0, 0, 0.45)' : 'none',
 										boxSizing: 'border-box',
-										transition: 'transform 0.12s ease, border-color 0.12s ease',
+										transition: 'transform 0.12s ease, border-color 0.12s ease, opacity 0.15s ease',
 										flexShrink: 0
 									}}
-									onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.15)'; }}
+									onMouseEnter={(e) => { if (!colorsLocked) e.currentTarget.style.transform = 'scale(1.15)'; }}
 									onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}
 								>
 									{isSelected && (
@@ -674,7 +687,8 @@ const EventBlock = ({
 							<button
 								type="button"
 								className={`more-colors-btn ${showColorPicker ? 'active' : ''}`}
-								title="More colors"
+								title={colorsLocked ? 'Detach the calendar profile to choose a colour' : 'More colors'}
+								disabled={colorsLocked}
 								onClick={(e) => {
 									e.stopPropagation();
 									setShowColorPicker(prev => !prev);
@@ -682,7 +696,8 @@ const EventBlock = ({
 								style={{
 									width: '26px',
 									height: '26px',
-									cursor: 'pointer',
+									cursor: colorsLocked ? 'default' : 'pointer',
+									opacity: colorsLocked ? 0.3 : 1,
 									display: 'flex',
 									alignItems: 'center',
 									justifyContent: 'center',
@@ -713,7 +728,7 @@ const EventBlock = ({
 								</svg>
 							</button>
 
-							{showColorPicker && (
+							{showColorPicker && !colorsLocked && (
 								<div
 									className="color-palette-popover"
 									onClick={(e) => e.stopPropagation()}
