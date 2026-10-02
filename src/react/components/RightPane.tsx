@@ -25,18 +25,6 @@ interface RightPaneProps {
 }
 
 
-const THEME_COLORS: Record<string, string> = {
-	'pastel-red': '#ffaaa8',
-	'pastel-orange': '#ffc8a8',
-	'pastel-yellow': '#ffeca8',
-	'pastel-green': '#a8ffb9',
-	'pastel-blue': '#a8d2ff',
-	'pastel-pink': '#ffa8e2',
-	'mint': '#99f2b8',
-	'coral': '#ff9c9c',
-	'lavender': '#d1c4f7'
-};
-
 const ALL_TIME_SLOTS = Array.from({ length: 96 }).map((_, i) => ({
 	hour: Math.floor(i / 4),
 	min: (i % 4) * 15
@@ -1734,7 +1722,12 @@ export const RightPane = ({ event, onClose, onUpdate, onDateSelect, onDelete, pl
 							// to the bottom). Rows in the timer column keep their timer color.
 							const rowAccent = accentColorForId(todo.id);
 							const activeTimer = timers?.find(t => t.todoId === todo.id);
-							const timerAccent = activeTimer ? (THEME_COLORS[activeTimer.colorTheme || ''] || undefined) : undefined;
+							// The circle takes the timer's own colour while the to-do sits in the
+							// timer column, resolved through the shared palette so every swatch a
+							// timer can wear resolves. A local shortlist was used here before, and
+							// any name missing from it left both the ring and the fill fully
+							// transparent — the row appeared to have no checkbox at all.
+							const timerAccent = activeTimer ? (resolveAccentHex(activeTimer.colorTheme) || undefined) : undefined;
 							const checkboxAccent = timerAccent || rowAccent;
 							return (
 								<div
@@ -1775,9 +1768,13 @@ export const RightPane = ({ event, onClose, onUpdate, onDateSelect, onDelete, pl
 											// Completed rows — and rows already sitting in the timer column —
 											// render as a solid accent-filled circle with NO checkmark.
 											border: (todo.completed || activeTimer) ? '1.5px solid transparent' : '1.5px solid var(--text-muted)',
+											// A row in the timer column is drawn as a solid filled circle, so its
+											// fill falls back to the row's own accent rather than to
+											// transparency: there is no ring to fall back on, and an
+											// unfilled circle with a transparent ring is nothing at all.
 											backgroundColor: todo.completed
 												? checkboxAccent
-												: (timerAccent || 'transparent'),
+												: (activeTimer ? checkboxAccent : 'transparent'),
 											flexShrink: 0,
 											cursor: 'pointer',
 											display: 'flex',
