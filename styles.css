@@ -1,0 +1,5093 @@
+.workspace-leaf-content[data-type="sleek-calendar-view"] .view-content,
+.sleek-calendar-react-root {
+	padding: 0 !important;
+	margin: 0 !important;
+	height: 100% !important;
+	width: 100% !important;
+	overflow: hidden !important;
+}
+
+/* The calendar is full-bleed, so the leaf's own header is taken out of the layout:
+   it exists only to carry a title heading above the month and the controls, and that
+   heading is one line of chrome the calendar does not need. The leaf still keeps its
+   tab — and that tab's context menu — in the workspace tab strip, so nothing is lost
+   but the heading. Delete this rule to bring the header back. */
+.workspace-leaf-content[data-type="sleek-calendar-view"] .view-header {
+	display: none;
+}
+
+.sleek-calendar-app {
+	--interactive-accent: #3b82f6 !important;
+	--interactive-accent-rgb: 59, 130, 246 !important;
+	--interactive-accent-hover: #3b82f6 !important;
+	/* Stop Obsidian's purple accent reaching focus rings, text accents or native
+	   control highlights anywhere inside the calendar (borders stay neutral). */
+	--text-accent: var(--text-normal) !important;
+	--text-accent-hover: var(--text-normal) !important;
+	--color-accent: var(--text-normal) !important;
+	--color-accent-1: var(--text-normal) !important;
+	--color-accent-2: var(--text-normal) !important;
+	--background-modifier-border-focus: var(--background-modifier-border) !important;
+	--background-modifier-border-hover: var(--background-modifier-border) !important;
+	--input-shadow: none !important;
+	--input-shadow-hover: none !important;
+	accent-color: var(--text-muted) !important;
+	display: flex;
+	height: 100%;
+	margin: 0;
+	width: 100%;
+	background-color: var(--background-primary);
+	color: var(--text-normal);
+	font-family: var(--font-interface);
+	border-radius: 0;
+	overflow: hidden;
+	box-shadow: none;
+}
+
+/* ABSOLUTE BAN ON PURPLE ACCENTS & FOCUS RINGS & COLORED BORDERS */
+.sleek-calendar-app input:focus,
+.sleek-calendar-app input:focus-visible,
+.sleek-calendar-app textarea:focus,
+.sleek-calendar-app textarea:focus-visible,
+.sleek-right-panel-wrapper input:focus,
+.sleek-right-panel-wrapper input:focus-visible,
+.sleek-right-panel-wrapper textarea:focus,
+.sleek-right-panel-wrapper textarea:focus-visible,
+.sleek-right-pane input:focus,
+.sleek-right-pane input:focus-visible,
+.sleek-right-pane textarea:focus,
+.sleek-right-pane textarea:focus-visible,
+.todo-inline-edit-input,
+.todo-inline-edit-input:focus,
+.todo-inline-edit-input:focus-visible,
+.todo-add-input:focus,
+.todo-add-input:focus-visible,
+.sleek-right-panel-wrapper button:focus,
+.sleek-right-panel-wrapper button:focus-visible,
+.sleek-right-panel-wrapper button:active,
+.sleek-right-panel-wrapper [role="button"]:focus,
+.sleek-right-panel-wrapper [role="button"]:focus-visible,
+.sleek-right-panel-wrapper select:focus,
+.sleek-right-panel-wrapper select:focus-visible,
+.sleek-right-pane button:focus,
+.sleek-right-pane button:focus-visible,
+.sleek-right-pane button:active,
+.sleek-right-pane [role="button"]:focus,
+.sleek-right-pane [role="button"]:focus-visible,
+.sleek-right-pane select:focus,
+.sleek-right-pane select:focus-visible {
+	outline: none !important;
+	box-shadow: none !important;
+	-webkit-focus-ring-color: transparent !important;
+}
+
+/* A selected swatch never shows a focus ring or a border while it holds focus —
+   selection is communicated purely by the size bump. */
+.profile-color-swatch.is-selected:focus,
+.profile-color-swatch.is-selected:focus-visible {
+	outline: none !important;
+	border: none !important;
+	box-shadow: none !important;
+}
+
+/* Neutral option highlighting — never the OS/Obsidian accent colour. */
+.sleek-right-pane option,
+.sleek-right-panel-wrapper option {
+	background-color: var(--background-secondary) !important;
+	color: var(--text-normal) !important;
+}
+
+.sleek-right-pane option:checked,
+.sleek-right-pane option:hover,
+.sleek-right-panel-wrapper option:checked,
+.sleek-right-panel-wrapper option:hover {
+	background-color: var(--background-modifier-hover) !important;
+	color: var(--text-normal) !important;
+}
+
+/* Neutral text selection across all inputs */
+.sleek-calendar-app ::selection,
+.sleek-right-panel-wrapper ::selection,
+.sleek-right-pane ::selection,
+.todo-inline-edit-input::selection {
+	background-color: var(--text-selection, rgba(255, 255, 255, 0.2)) !important;
+	color: inherit !important;
+}
+
+.todo-inline-edit-input {
+	font-size: 13px !important;
+	font-weight: 400 !important;
+	color: #ffffff !important;
+	background: var(--background-modifier-form-field, rgba(255, 255, 255, 0.05)) !important;
+	border: 1px solid var(--background-modifier-border) !important;
+	border-radius: 4px !important;
+	padding: 2px 6px !important;
+	outline: none !important;
+	box-shadow: none !important;
+	flex: 1;
+	min-width: 0;
+	box-sizing: border-box !important;
+	line-height: 1.3 !important;
+}
+
+.todo-inline-edit-input:focus,
+.todo-inline-edit-input:focus-visible {
+	border: 1px solid var(--background-modifier-border) !important;
+	outline: none !important;
+	box-shadow: none !important;
+}
+
+.sleek-sidebar {
+	width: 100%;
+	height: 100%;
+	background-color: var(--background-primary);
+	padding: 14px 14px 16px 14px;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	border: none;
+	flex-shrink: 0;
+	box-sizing: border-box;
+}
+
+.user-profile {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.user-profile .avatar {
+	width: 40px;
+	height: 40px;
+	border-radius: 50%;
+	background-color: var(--background-modifier-border);
+}
+
+.user-info .user-name {
+	font-weight: 600;
+	font-size: 14px;
+}
+
+.user-info .user-title {
+	font-size: 12px;
+	color: var(--text-muted);
+}
+
+.sidebar-section h3 {
+	font-size: 12px;
+	text-transform: uppercase;
+	color: var(--text-muted);
+	margin-bottom: 12px;
+}
+
+.sidebar-section ul {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+}
+
+.sidebar-section li {
+	margin-bottom: 8px;
+}
+
+.sleek-main-grid {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	padding: 0;
+	background-color: var(--background-primary);
+	overflow: hidden;
+	height: 100%;
+	min-height: 0;
+}
+
+.grid-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 12px 20px;
+	margin-bottom: 0;
+}
+
+.grid-header h2 {
+	margin: 0;
+	font-size: 24px;
+	font-weight: 600;
+}
+
+/* Grid Header Controls */
+.sleek-calendar-app .controls-group {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.sleek-calendar-app .view-dropdown {
+	position: relative;
+}
+
+.sleek-calendar-app .view-dropdown-btn {
+	padding: 6px 12px;
+	background-color: var(--background-modifier-form-field);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	font-weight: 500;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	cursor: pointer;
+	color: var(--text-normal);
+	transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease, filter 0.15s ease;
+}
+
+.sleek-calendar-app .view-dropdown-btn:hover {
+	background-color: var(--background-modifier-hover) !important;
+	border-color: var(--text-muted) !important;
+	filter: brightness(1.2) !important;
+	transform: translateY(-1px);
+}
+
+.sleek-calendar-app .view-dropdown-btn.open,
+.sleek-calendar-app .view-dropdown-btn:active {
+	background-color: var(--background-modifier-hover) !important;
+	border-color: var(--background-modifier-border-hover, rgba(255, 255, 255, 0.25)) !important;
+	transform: translateY(0);
+}
+
+.dropdown-arrow {
+	font-size: 9px;
+	opacity: 0.6;
+	transition: transform 0.15s ease;
+}
+
+.sleek-calendar-app .view-dropdown-btn.open .dropdown-arrow {
+	transform: rotate(180deg);
+}
+
+.sleek-calendar-app .view-dropdown-menu {
+	position: absolute;
+	top: calc(100% + 4px);
+	left: 0;
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	padding: 4px;
+	z-index: 100;
+	width: 120px;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+}
+
+.sleek-calendar-app .view-dropdown-item {
+	padding: 6px 12px;
+	cursor: pointer;
+	border-radius: 5px;
+	font-size: 13px;
+	color: var(--text-normal);
+	transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.sleek-calendar-app .view-dropdown-item:hover {
+	background-color: var(--background-modifier-hover) !important;
+	filter: brightness(1.15);
+}
+
+.sleek-calendar-app .view-dropdown-item.active {
+	background-color: var(--background-modifier-hover);
+	color: var(--text-normal);
+	font-weight: 600;
+}
+
+.sleek-calendar-app .date-nav-buttons {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+}
+
+.sleek-calendar-app .today-nav-btn {
+	padding: 6px 16px;
+	background-color: var(--background-modifier-form-field);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	font-weight: 500;
+	cursor: pointer;
+	color: var(--text-normal);
+	transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease, filter 0.15s ease;
+}
+
+.sleek-calendar-app .today-nav-btn:hover {
+	background-color: var(--background-modifier-hover) !important;
+	border-color: var(--text-muted) !important;
+	filter: brightness(1.2) !important;
+	transform: translateY(-1px);
+}
+
+.sleek-calendar-app .today-nav-btn:active {
+	transform: scale(0.97);
+}
+
+.sleek-calendar-app .nav-arrow-group {
+	display: flex;
+	gap: 4px;
+}
+
+.sleek-calendar-app .nav-arrow-btn {
+	padding: 6px 11px;
+	background-color: var(--background-modifier-form-field);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	cursor: pointer;
+	color: var(--text-normal);
+	font-weight: 500;
+	transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease, filter 0.15s ease;
+}
+
+.sleek-calendar-app .nav-arrow-btn:hover {
+	background-color: var(--background-modifier-hover) !important;
+	border-color: var(--text-muted) !important;
+	filter: brightness(1.2) !important;
+	transform: translateY(-1px);
+}
+
+.sleek-calendar-app .nav-arrow-btn:active {
+	transform: scale(0.95);
+}
+
+.sleek-calendar-app .version-tag {
+	font-size: 10px;
+	color: var(--text-muted);
+	margin-left: 4px;
+}
+
+.sleek-calendar-app .add-event-btn {
+	padding: 6px 16px;
+	border-radius: 6px;
+	background-color: var(--background-modifier-form-field);
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-normal);
+	font-weight: 500;
+	cursor: pointer;
+	transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease, filter 0.15s ease;
+}
+
+.sleek-calendar-app .add-event-btn:hover {
+	background-color: var(--background-modifier-hover) !important;
+	border-color: var(--text-muted) !important;
+	filter: brightness(1.2) !important;
+	transform: translateY(-1px);
+}
+
+.sleek-calendar-app .add-event-btn:active {
+	transform: scale(0.97);
+}
+
+.grid-dates-header {
+	display: flex;
+	height: 64px;
+	background-color: var(--background-primary);
+	z-index: 20;
+	user-select: none;
+}
+
+.week-grid {
+	display: flex;
+	flex: 1;
+	overflow-y: auto;
+	/* A flex row always fits its parent, so the horizontal axis is pinned shut.
+	   Without this, `overflow-y: auto` forces `overflow-x` to compute to `auto` as
+	   well, and a dragged tile (or dnd-kit's auto-scroll) can slide the whole grid
+	   sideways — which read as the calendar window shifting mid-drag. */
+	overflow-x: hidden;
+	overscroll-behavior: none;
+	position: relative;
+	scrollbar-width: none !important;
+	-ms-overflow-style: none !important;
+	height: 100%;
+	min-height: 0;
+}
+
+.week-grid::-webkit-scrollbar,
+.sleek-right-pane::-webkit-scrollbar,
+.sleek-sidebar::-webkit-scrollbar,
+.sidebar-drop-zone::-webkit-scrollbar {
+	display: none !important;
+	width: 0 !important;
+	height: 0 !important;
+}
+
+.sleek-right-pane,
+.sleek-sidebar,
+.sidebar-drop-zone {
+	scrollbar-width: none !important;
+	-ms-overflow-style: none !important;
+	overscroll-behavior: contain;
+}
+
+.time-column {
+	width: 50px;
+	flex-shrink: 0;
+	display: flex;
+	flex-direction: column;
+	padding-top: 0;
+	user-select: none;
+	/* Kept above the decorative current-time line so the line runs UNDER the
+	   hour labels while still spanning the full width of the grid. */
+	position: relative;
+	z-index: 1;
+}
+
+.time-column-header-spacer {
+	height: 82px;
+	flex: 0 0 82px;
+	position: sticky;
+	top: 0;
+	z-index: 10;
+	background-color: var(--background-primary);
+	border-bottom: none;
+	box-sizing: border-box;
+}
+
+.time-slot-label {
+	font-size: 11px;
+	color: var(--text-muted);
+	text-align: right;
+	padding-right: 8px;
+	transform: translateY(-6px);
+	font-weight: 500;
+	flex-shrink: 0;
+	box-sizing: border-box;
+	display: flex;
+	align-items: flex-start;
+	justify-content: flex-end;
+	line-height: 1;
+}
+
+.time-slot-label:first-of-type {
+	transform: translateY(2px) !important;
+}
+
+.days-columns {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.days-header {
+	display: flex;
+	height: 82px;
+	position: sticky;
+	top: 0;
+	z-index: 10;
+	background-color: var(--background-primary);
+	border-bottom: none;
+	box-sizing: border-box;
+}
+
+.day-header {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: flex-end;
+	padding-bottom: 0px;
+	cursor: pointer;
+}
+
+.day-header-inner {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 2px;
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: 4px 12px;
+	border-radius: 8px;
+	transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+
+.day-header-inner:hover {
+	opacity: 1 !important;
+	background-color: var(--background-modifier-hover);
+	color: var(--text-normal) !important;
+}
+
+.day-header-inner.active {
+	opacity: 1;
+	color: var(--text-normal) !important;
+}
+
+.day-header-tick {
+	width: 1px;
+	height: 18px;
+	background-color: var(--background-modifier-border);
+	margin-top: 6px;
+	flex-shrink: 0;
+}
+
+.days-body {
+	flex: 1;
+	display: flex;
+	position: relative;
+	background-size: 100% 60px;
+	background-image: none;
+	z-index: 1;
+}
+
+.placeholder-event {
+	position: absolute;
+	width: calc(14.28% - 10px);
+	border-radius: 10px;
+	cursor: pointer;
+	user-select: none;
+	padding: 8px 10px;
+	box-sizing: border-box;
+	margin: 0;
+	border: 1px solid transparent;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+	overflow: visible !important;
+	transition: filter 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.placeholder-event.has-overlap {
+	border: 1px solid transparent;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+}
+
+.theme-dark .placeholder-event.has-overlap {
+	border: 1px solid transparent;
+	box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
+}
+
+.theme-light .placeholder-event.has-overlap {
+	border: 1px solid transparent;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+/* Hovering (or selecting) an overlapping tile lifts it clear of its neighbours —
+   except a whole-day event, which is a deliberate backdrop: it must never rise up
+   and bury the timed events stacked on top of it. */
+.placeholder-event.has-overlap:not(.is-allday-event):hover,
+.placeholder-event.has-overlap:not(.is-allday-event).selected {
+	z-index: 25 !important;
+	border: 1px solid transparent;
+	filter: brightness(1.08) saturate(1.06);
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+}
+
+.theme-light .placeholder-event.has-overlap:not(.is-allday-event):hover,
+.theme-light .placeholder-event.has-overlap:not(.is-allday-event).selected {
+	border: 1px solid transparent;
+	filter: brightness(1.04) saturate(1.05);
+	box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18) !important;
+}
+
+.placeholder-event:hover {
+	filter: brightness(1.06) saturate(1.08);
+}
+
+.placeholder-event.is-dragging-tile {
+	outline: 2px dotted var(--text-normal, rgba(255, 255, 255, 0.85)) !important;
+	outline-offset: 2px !important;
+	box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45) !important;
+	z-index: 100 !important;
+	filter: brightness(1.06) saturate(1.04) !important;
+	cursor: grabbing !important;
+}
+
+.theme-light .placeholder-event.is-dragging-tile {
+	outline: 2px dotted var(--text-normal, rgba(0, 0, 0, 0.7)) !important;
+	outline-offset: 2px !important;
+	box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22) !important;
+}
+
+/* Slightly larger timestamp when dragging tile for improved visibility */
+.placeholder-event.is-dragging-tile .event-time {
+	font-size: 14px !important;
+	font-weight: 600 !important;
+	color: rgba(0, 0, 0, 0.85) !important;
+	letter-spacing: 0.01em;
+	white-space: normal !important;
+	flex-wrap: wrap !important;
+}
+
+.placeholder-event.small-tile.is-dragging-tile .event-time {
+	font-size: 13px !important;
+	font-weight: 600 !important;
+	color: rgba(0, 0, 0, 0.88) !important;
+	opacity: 0.95 !important;
+	letter-spacing: 0.01em;
+	white-space: normal !important;
+	flex-wrap: wrap !important;
+}
+
+.placeholder-event.is-dragging-tile .event-title {
+	font-size: 12px !important;
+	opacity: 0.7 !important;
+}
+
+.placeholder-event.small-tile.is-dragging-tile .event-title {
+	font-size: 11px !important;
+	opacity: 0.7 !important;
+}
+
+.placeholder-event.small-tile {
+	padding: 0 8px !important;
+	display: flex !important;
+	align-items: center !important;
+	border-radius: 6px !important;
+}
+
+.placeholder-event.small-tile .event-content {
+	flex-direction: row !important;
+	align-items: center !important;
+	justify-content: space-between !important;
+	gap: 6px !important;
+	height: 100% !important;
+	width: 100% !important;
+	overflow: hidden !important;
+}
+
+.placeholder-event.small-tile .event-title {
+	font-size: 13px !important;
+	line-height: 1.15 !important;
+	white-space: nowrap !important;
+	overflow: hidden !important;
+	text-overflow: ellipsis !important;
+	display: block !important;
+	-webkit-line-clamp: unset !important;
+	-webkit-box-orient: unset !important;
+	flex: 1 1 0% !important;
+	min-width: 0 !important;
+	margin: 0 !important;
+}
+
+.placeholder-event.small-tile .event-time {
+	font-size: 12px !important;
+	font-weight: 500 !important;
+	line-height: 1.15 !important;
+	white-space: nowrap !important;
+	flex-shrink: 0 !important;
+	margin-left: auto !important;
+	margin-top: 0 !important;
+	opacity: 0.85 !important;
+	display: inline-block !important;
+	transition: font-size 0.12s ease, font-weight 0.12s ease;
+}
+
+.event-content {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	height: 100%;
+	width: 100%;
+	overflow: hidden;
+}
+
+.event-title {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+	font-weight: 600;
+	font-size: 14px;
+	line-height: 1.2;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	word-break: break-word;
+	flex-shrink: 0;
+	color: rgba(0, 0, 0, 0.88);
+}
+
+.event-time {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+	font-size: 12.5px;
+	font-weight: 500;
+	line-height: 1.2;
+	flex-shrink: 0;
+	display: flex;
+	flex-wrap: wrap;
+	white-space: normal;
+	gap: 2px;
+	align-items: center;
+	margin-top: 1px;
+	color: rgba(0, 0, 0, 0.65);
+	transition: font-size 0.12s ease, font-weight 0.12s ease;
+}
+
+.event-tile-divider {
+	height: 1px;
+	background-color: rgba(0, 0, 0, 0.11);
+	margin: 3px 0 2px 0;
+	width: 100%;
+	flex-shrink: 0;
+}
+
+.event-description {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+	font-size: 11.5px;
+	line-height: 1.3;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	word-break: break-word;
+	margin-top: 1px;
+	flex: 1;
+	min-height: 0;
+	color: rgba(0, 0, 0, 0.52);
+}
+
+.event-todo-list {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	margin-top: 1px;
+	overflow: hidden;
+	flex: 1;
+	min-height: 0;
+}
+
+.event-todo-item {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+	font-size: 11.5px;
+	line-height: 1.3;
+	color: rgba(0, 0, 0, 0.52);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	min-width: 0;
+	flex-shrink: 0;
+}
+
+.event-todo-bullet {
+	font-size: 10px;
+	line-height: 1;
+	opacity: 0.55;
+	flex-shrink: 0;
+}
+
+.event-todo-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+	flex: 1;
+	color: rgba(0, 0, 0, 0.52);
+	transition: opacity 0.15s ease;
+}
+
+/* Event Modal Styles */
+.event-modal-overlay {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.4);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+}
+
+.event-modal {
+	background-color: var(--background-primary);
+	border-radius: 16px;
+	width: 400px;
+	box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+	border: 1px solid var(--background-modifier-border);
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+}
+
+.event-modal-header {
+	padding: 20px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.event-title-input {
+	font-size: 20px;
+	font-weight: 600;
+	border: none;
+	background: transparent;
+	color: var(--text-normal);
+	width: 100%;
+	outline: none;
+}
+
+.close-button {
+	background: transparent;
+	border: none;
+	font-size: 24px;
+	cursor: pointer;
+	color: var(--text-muted);
+	padding: 0;
+	line-height: 1;
+}
+
+.event-modal-body {
+	padding: 20px;
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+}
+
+.modal-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+}
+
+.modal-row .icon {
+	color: var(--text-muted);
+	font-size: 16px;
+	margin-top: 4px;
+}
+
+.modal-row textarea {
+	width: 100%;
+	min-height: 60px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 10px;
+	padding: 8px;
+	color: var(--text-normal);
+	resize: none;
+}
+
+.members-placeholder {
+	display: flex;
+	gap: -8px;
+}
+
+.avatar.mini {
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+	background-color: var(--background-modifier-border);
+	border: 2px solid var(--background-primary);
+}
+
+.add-member-btn {
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+	background-color: var(--background-secondary);
+	border: 1px dashed var(--text-muted);
+	color: var(--text-muted);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	padding: 0;
+	font-size: 16px;
+}
+
+.event-modal-footer {
+	padding: 20px;
+	display: flex;
+	justify-content: center;
+	background-color: var(--background-secondary);
+}
+
+.save-button {
+	background-color: #2563eb;
+	color: #ffffff;
+	border: none;
+	padding: 8px 32px;
+	border-radius: 20px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: opacity 0.2s;
+}
+
+.save-button:hover {
+	opacity: 0.9;
+}
+
+
+/* Right Pane Wrapper & Styles */
+.sleek-right-panel-wrapper {
+	width: 324px;
+	flex-shrink: 0;
+	height: 100%;
+	background-color: var(--background-primary);
+	border-left: 1px solid var(--background-modifier-border);
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	box-sizing: border-box;
+}
+
+.sleek-right-pane {
+	width: 100%;
+	height: 100%;
+	background-color: var(--background-primary);
+	border: none;
+	display: flex;
+	flex-direction: column;
+	overflow-y: auto;
+	overflow-x: hidden;
+	box-sizing: border-box;
+}
+
+.pane-header {
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
+	padding: 16px 24px;
+}
+
+.pane-type {
+	font-size: 13px;
+	color: var(--text-muted);
+	font-weight: 500;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	cursor: pointer;
+}
+
+.close-pane-btn {
+	background: transparent;
+	border: none;
+	cursor: pointer;
+	color: var(--text-muted);
+	padding: 4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 4px;
+}
+
+.close-pane-btn:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+.pane-content {
+	display: flex;
+	flex-direction: column;
+}
+
+.pane-section {
+	padding: 16px 24px;
+	position: relative;
+	border-bottom: none;
+}
+
+.pane-section:not(:last-child)::after {
+	content: '';
+	position: absolute;
+	bottom: 0;
+	left: 16px;
+	right: 16px;
+	height: 1px;
+	background-color: var(--background-modifier-border);
+}
+
+.title-section {
+	padding-top: 0;
+	/* Tightened so the profile row below the title hugs the section divider. */
+	padding-bottom: 10px;
+}
+
+/* ---------- The profile row, tucked under the event title ---------- */
+/* The swatch sits immediately to the LEFT of the attached profile's name, on its
+   own line below the title. Flush with the section's own left padding so the
+   swatch lines up with the icons in every row below (clock, globe, pin, …), and
+   nudged down so it sits closer to the separator line that closes this section. */
+.title-profile-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 10px 0 0 0;
+	min-height: 20px;
+}
+
+/* The button *is* the swatch: an empty rounded square with a "+" until a profile
+   is attached, then filled with that profile's colour (inline background). */
+.profile-title-btn {
+	width: 18px;
+	height: 18px;
+	padding: 0;
+	border: none;
+	border-radius: 4px;
+	background-color: rgba(128, 128, 128, 0.16);
+	box-shadow: none !important;
+	cursor: pointer;
+	color: var(--text-muted);
+	font-size: 15px;
+	font-weight: 500;
+	line-height: 1;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	transition: background-color 0.15s ease, color 0.15s ease, filter 0.15s ease;
+}
+
+.profile-title-btn:hover,
+.profile-title-btn.is-open {
+	background-color: rgba(128, 128, 128, 0.26);
+	color: var(--text-normal);
+}
+
+.profile-title-btn.is-assigned {
+	color: #ffffff;
+}
+
+.profile-title-btn.is-assigned:hover,
+.profile-title-btn.is-assigned.is-open {
+	filter: brightness(1.12);
+}
+
+.profile-title-plus {
+	font-size: 14px;
+	font-weight: 500;
+	line-height: 1;
+	transform: translateY(-1px);
+}
+
+/* The profile name next to the swatch. Only barely dimmer than the event title
+   (same colour at a slightly reduced opacity), just a touch smaller than it. */
+.title-profile-hint {
+	font-size: 15px;
+	font-weight: 400;
+	line-height: 1.35;
+	color: var(--text-normal);
+	opacity: 0.72;
+	letter-spacing: 0.01em;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* Before anything is attached this is just an invitation, so it recedes to the
+   point of being almost invisible. The "+" swatch beside it keeps its normal
+   weight — it alone signals that there is something to click. */
+.title-profile-hint.is-empty {
+	color: var(--text-faint);
+	opacity: 0.34;
+}
+
+.pane-title-input {
+	font-size: 18px;
+	font-weight: 500;
+	border: 1px solid transparent !important;
+	background: transparent !important;
+	color: var(--text-normal);
+	/* Pulled left by its own horizontal padding and widened to compensate, so the
+	   caret/first character sits on the section's left padding line — flush with
+	   the clock/globe/pin icons of the rows below — while the hover highlight and
+	   the text's right-hand wrap point stay exactly where they were. */
+	width: calc(100% + 12px);
+	margin: 0 0 0 -12px;
+	outline: none !important;
+	box-shadow: none !important;
+	padding: 8px 12px;
+	border-radius: 4px;
+	transition: background-color 0.15s ease;
+	resize: none;
+	overflow: hidden !important;
+	min-height: 38px;
+	line-height: 1.35;
+	font-family: inherit;
+	box-sizing: border-box;
+	display: block;
+	scrollbar-width: none !important;
+	-ms-overflow-style: none !important;
+}
+
+.pane-title-input:hover {
+	background: rgba(128, 128, 128, 0.05) !important;
+	border: 1px solid transparent !important;
+}
+
+.pane-title-input:focus {
+	background: transparent !important;
+	border: 1px solid transparent !important;
+	outline: none !important;
+	box-shadow: none !important;
+}
+
+.pane-title-input::-webkit-scrollbar {
+	display: none !important;
+	width: 0 !important;
+	height: 0 !important;
+}
+
+.time-section {
+	padding-top: 12px;
+	padding-bottom: 12px;
+}
+
+.time-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 16px;
+}
+
+.time-row .icon {
+	margin-top: 2px;
+	color: var(--text-muted);
+}
+
+.time-details {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.time-range-display {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 14px;
+	font-weight: 500;
+}
+
+.time-arrow {
+	color: var(--text-muted);
+}
+
+.time-duration {
+	color: var(--text-muted);
+	font-weight: 400;
+}
+
+.date-display {
+	font-size: 14px;
+	font-weight: 500;
+}
+
+/* Stacked event options (All-day / time zone / Repeat) */
+.event-options-stack {
+	display: flex;
+	flex-direction: column;
+	margin-top: 10px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.event-option-row {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	padding: 10px 0;
+	font-size: 14px;
+	color: var(--text-muted);
+	cursor: pointer;
+	position: relative;
+	transition: color 0.15s ease;
+}
+
+.event-option-row:not(:last-child) {
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.event-option-row:hover {
+	color: var(--text-normal);
+}
+
+.event-option-row .icon {
+	flex-shrink: 0;
+}
+
+.event-option-label {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--text-normal);
+}
+
+.event-option-trailing {
+	flex-shrink: 0;
+	color: var(--text-muted);
+}
+
+.event-option-dropdown {
+	position: absolute;
+	top: calc(100% + 6px);
+	left: 0;
+	right: auto;
+	z-index: 300;
+	min-width: 240px;
+	max-width: 100%;
+	box-sizing: border-box;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 10px;
+	box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.25);
+	padding: 6px;
+	max-height: 300px;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.event-option-dropdown-item {
+	padding: 8px 10px;
+	border-radius: 6px;
+	font-size: 14.5px;
+	font-weight: 400;
+	line-height: 1.4;
+	color: var(--text-normal);
+	cursor: pointer;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.event-option-dropdown-detail {
+	margin-left: 8px;
+	color: var(--text-faint);
+	font-weight: 400;
+}
+
+.event-option-dropdown-item:hover {
+	background: var(--background-modifier-hover);
+}
+
+.event-option-dropdown-item.is-selected {
+	background: var(--background-modifier-hover);
+	font-weight: 500;
+}
+
+/* Neutral on/off switch (no colored borders, no purple) */
+.sleek-switch {
+	width: 34px;
+	height: 20px;
+	border-radius: 999px;
+	position: relative;
+	cursor: pointer;
+	flex-shrink: 0;
+	display: inline-flex;
+	align-items: center;
+	transition: background 0.15s ease;
+	outline: none !important;
+	box-shadow: none !important;
+	-webkit-appearance: none;
+	appearance: none;
+}
+
+.sleek-switch-knob {
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	width: 16px;
+	height: 16px;
+	border-radius: 50%;
+	background: #ffffff;
+	transition: transform 0.15s ease;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.sleek-switch.is-on .sleek-switch-knob {
+	transform: translateX(14px);
+}
+
+/* Custom repeat modal */
+.repeat-modal-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 3000;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: rgba(0, 0, 0, 0.5);
+}
+
+.repeat-modal {
+	width: 360px;
+	max-width: calc(100vw - 32px);
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 12px;
+	box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+	padding: 20px;
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+	color: var(--text-normal);
+}
+
+.repeat-modal-title {
+	font-size: 16px;
+	font-weight: 600;
+}
+
+.repeat-modal-row,
+.repeat-end-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.repeat-modal-label {
+	color: var(--text-muted);
+	font-size: 14px;
+	min-width: 40px;
+}
+
+.repeat-modal-section-label {
+	color: var(--text-muted);
+	font-size: 13px;
+	margin-top: 4px;
+}
+
+.repeat-modal-number {
+	width: 64px;
+}
+
+.repeat-modal-date {
+	flex: 1;
+	min-width: 0;
+}
+
+.repeat-modal-number,
+.repeat-modal-date,
+.repeat-modal-select {
+	background: var(--background-modifier-form-field, var(--background-primary));
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	padding: 6px 8px;
+	color: var(--text-normal);
+	font-size: 14px;
+	outline: none !important;
+	box-shadow: none !important;
+	box-sizing: border-box;
+}
+
+.repeat-modal-select {
+	flex: 1;
+}
+
+.theme-dark .repeat-modal-number,
+.theme-dark .repeat-modal-date {
+	color-scheme: dark;
+}
+
+.repeat-weekday-list {
+	display: flex;
+	gap: 6px;
+}
+
+.repeat-weekday {
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	border: none;
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+	font-size: 12px;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: background 0.15s ease, color 0.15s ease;
+	outline: none !important;
+	box-shadow: none !important;
+}
+
+.repeat-weekday.is-active {
+	background: var(--sleek-accent, var(--text-muted));
+	color: #0b0b0c;
+}
+
+.repeat-radio {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	background: transparent;
+	border: none;
+	padding: 0;
+	cursor: pointer;
+	color: var(--text-normal);
+	font-size: 14px;
+	outline: none !important;
+	box-shadow: none !important;
+	min-width: 78px;
+	justify-content: flex-start;
+}
+
+.repeat-radio-dot {
+	width: 16px;
+	height: 16px;
+	border-radius: 50%;
+	border: 2px solid var(--text-muted);
+	box-sizing: border-box;
+	flex-shrink: 0;
+	transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.repeat-radio.is-selected .repeat-radio-dot {
+	border-color: var(--sleek-accent, var(--text-muted));
+	background: var(--sleek-accent, var(--text-muted));
+	box-shadow: inset 0 0 0 3px var(--background-secondary);
+}
+
+.repeat-modal-suffix {
+	color: var(--text-muted);
+	font-size: 14px;
+}
+
+.repeat-modal-footer {
+	display: flex;
+	justify-content: flex-end;
+	gap: 10px;
+	margin-top: 6px;
+}
+
+.repeat-modal-btn {
+	padding: 8px 16px;
+	border-radius: 8px;
+	border: none;
+	cursor: pointer;
+	font-size: 14px;
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+	outline: none !important;
+	box-shadow: none !important;
+	transition: filter 0.15s ease;
+}
+
+.repeat-modal-btn:hover {
+	filter: brightness(1.15);
+}
+
+.repeat-modal-btn.is-primary {
+	background: var(--sleek-accent, var(--text-normal));
+	color: #0b0b0c;
+	font-weight: 600;
+}
+
+.details-section {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+}
+
+.detail-row {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	font-size: 14px;
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: 6px 10px;
+	margin: -6px -10px;
+	border-radius: 6px;
+	transition: all 0.15s ease;
+}
+
+.detail-row:hover {
+	color: var(--text-normal);
+	background-color: var(--background-modifier-hover);
+}
+
+.detail-row:hover .icon {
+	color: var(--text-normal);
+}
+
+/* Location row: calm, wrapping address link (no heavy underline, no bold) */
+.location-detail-row {
+	align-items: flex-start;
+}
+
+.location-detail-row .icon {
+	margin-top: 3px;
+}
+
+.location-detail-row>span {
+	margin-top: 3px;
+}
+
+.location-link {
+	flex: 1;
+	min-width: 0;
+	font-size: 14.5px;
+	font-weight: 400;
+	line-height: 1.4;
+	color: var(--text-normal);
+	text-decoration: underline;
+	text-decoration-thickness: 1px;
+	/* Almost-invisible hairline: solid fallback first for engines without
+	   color-mix(), then the faded-out colour used by modern Electron. */
+	text-decoration-color: var(--text-faint);
+	text-decoration-color: color-mix(in srgb, var(--text-faint) 28%, transparent);
+	text-underline-offset: 3px;
+	cursor: pointer;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	overflow-wrap: anywhere;
+}
+
+.location-link:hover {
+	text-decoration-color: color-mix(in srgb, var(--text-muted) 55%, transparent);
+	color: var(--text-normal);
+}
+
+.time-picker-wrapper {
+	position: relative;
+	display: inline-flex;
+}
+
+.sleek-time-btn {
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: 6px;
+	padding: 4px 6px;
+	font-weight: 500;
+	font-size: 14px;
+	color: var(--text-normal);
+	transition: background-color 0.15s ease, border-color 0.15s ease;
+	cursor: pointer;
+	outline: none;
+	display: inline-flex;
+	align-items: center;
+	line-height: 1.2;
+}
+
+.sleek-time-btn:hover,
+.sleek-time-btn.active {
+	background-color: var(--background-modifier-hover) !important;
+	border-color: var(--background-modifier-border);
+}
+
+.sleek-time-dropdown-menu {
+	position: absolute;
+	top: calc(100% + 4px);
+	left: 0;
+	width: 124px;
+	height: 260px;
+	max-height: 260px;
+	overflow-y: auto;
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 10px;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+	padding: 4px;
+	z-index: 200;
+	box-sizing: border-box;
+}
+
+.sleek-time-dropdown-menu.end-time-menu {
+	width: 165px;
+}
+
+.sleek-time-dropdown-item {
+	padding: 3px 8px;
+	font-size: 13px;
+	line-height: 18px;
+	border-radius: 5px;
+	cursor: pointer;
+	color: var(--text-normal);
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	transition: background-color 0.1s ease, color 0.1s ease;
+	user-select: none;
+}
+
+.sleek-time-dropdown-item:hover {
+	background-color: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.sleek-time-dropdown-item.selected {
+	background-color: var(--background-modifier-hover);
+	color: var(--text-normal);
+	font-weight: 600;
+}
+
+.date-display {
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: 6px;
+	padding: 4px 6px;
+	font-weight: 500;
+	font-size: 14px;
+	color: var(--text-normal);
+	transition: all 0.15s ease;
+	cursor: pointer;
+}
+
+.date-display:hover,
+.date-display.active {
+	background-color: var(--background-modifier-hover) !important;
+	border-color: var(--background-modifier-border);
+}
+
+.pane-section.text-section,
+.pane-section.todo-section {
+	padding: 6px 8px 14px 8px;
+}
+
+
+.description-textarea {
+	width: 100%;
+	box-sizing: border-box;
+	min-height: 150px;
+	background: transparent;
+	border: 1px solid transparent !important;
+	border-radius: 8px;
+	color: var(--text-normal);
+	resize: vertical;
+	font-size: 14px;
+	line-height: 1.45;
+	outline: none !important;
+	box-shadow: none !important;
+	padding: 10px 12px;
+	transition: all 0.15s ease;
+}
+
+.description-textarea:hover:not(:focus) {
+	background: var(--background-modifier-hover);
+	border: 1px solid var(--background-modifier-border) !important;
+}
+
+.description-textarea:focus {
+	color: var(--text-normal);
+	background: var(--background-modifier-form-field);
+	border: 1px solid var(--background-modifier-border) !important;
+	box-shadow: none !important;
+}
+
+input[type="text"].todo-add-input,
+.theme-dark input[type="text"].todo-add-input,
+.theme-light input[type="text"].todo-add-input,
+.sleek-right-panel-wrapper input[type="text"].todo-add-input,
+.sleek-right-pane input[type="text"].todo-add-input,
+.todo-add-input {
+	width: 100% !important;
+	box-sizing: border-box !important;
+	background: transparent !important;
+	background-color: transparent !important;
+	border: 1px solid transparent !important;
+	border-radius: 8px !important;
+	color: var(--text-normal) !important;
+	font-size: 14px !important;
+	line-height: 1.45 !important;
+	outline: none !important;
+	box-shadow: none !important;
+	padding: 10px 12px !important;
+	transition: background-color 0.15s ease, border-color 0.15s ease !important;
+}
+
+input[type="text"].todo-add-input:hover:not(:focus):not(.has-value),
+.theme-dark input[type="text"].todo-add-input:hover:not(:focus):not(.has-value),
+.sleek-right-pane input[type="text"].todo-add-input:hover:not(:focus):not(.has-value),
+.todo-add-input:hover:not(:focus):not(.has-value) {
+	background: var(--background-modifier-hover) !important;
+	background-color: var(--background-modifier-hover) !important;
+	border: 1px solid var(--background-modifier-border) !important;
+}
+
+input[type="text"].todo-add-input:focus,
+input[type="text"].todo-add-input:focus-visible,
+input[type="text"].todo-add-input.has-value,
+.theme-dark input[type="text"].todo-add-input:focus,
+.theme-dark input[type="text"].todo-add-input:focus-visible,
+.theme-dark input[type="text"].todo-add-input.has-value,
+.sleek-right-pane input[type="text"].todo-add-input:focus,
+.sleek-right-pane input[type="text"].todo-add-input:focus-visible,
+.sleek-right-pane input[type="text"].todo-add-input.has-value,
+.todo-add-input:focus,
+.todo-add-input:focus-visible,
+.todo-add-input.has-value {
+	color: var(--text-normal) !important;
+	background: var(--background-modifier-form-field) !important;
+	background-color: var(--background-modifier-form-field) !important;
+	border: 1px solid var(--background-modifier-border) !important;
+	box-shadow: none !important;
+	outline: none !important;
+}
+
+.sleek-sidebar input[type="text"].todo-add-input,
+.sleek-sidebar .todo-add-input {
+	padding: 6px 10px !important;
+	font-size: 13px !important;
+	border-radius: 6px !important;
+}
+
+.recent-colors-row>div:not(.color-picker-wrapper) {
+	transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.recent-colors-row>div:not(.color-picker-wrapper):hover {
+	transform: scale(1.25);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.recent-colors-row .more-colors-btn:hover svg {
+	color: var(--text-normal) !important;
+}
+
+.color-palette-popover {
+	animation: eventContextMenuFadeIn 0.12s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+	transform-origin: top right;
+	overscroll-behavior: contain;
+	scrollbar-width: thin;
+	scrollbar-color: var(--background-modifier-border) transparent;
+}
+
+.color-palette-popover::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+
+.color-palette-popover::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.color-palette-popover::-webkit-scrollbar-thumb {
+	background: var(--background-modifier-border);
+	border-radius: 3px;
+}
+
+.color-palette-popover>div {
+	transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.color-palette-popover>div:hover {
+	transform: scale(1.22);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+	z-index: 2;
+}
+
+.bottom-section {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+}
+
+.calendar-selection-row,
+.color-selection-row {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	padding: 4px 6px;
+	margin: -4px -6px;
+	border-radius: 6px;
+	transition: background-color 0.15s ease;
+}
+
+.calendar-selection-row:hover,
+.color-selection-row:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+.color-dot {
+	width: 14px;
+	height: 14px;
+	border-radius: 4px;
+}
+
+.minimal-select {
+	background: transparent;
+	border: none;
+	color: var(--text-normal);
+	font-size: 14px;
+	outline: none;
+	cursor: pointer;
+	padding: 2px 4px;
+	border-radius: 4px;
+	transition: all 0.15s ease;
+}
+
+.minimal-select:hover {
+	color: var(--text-normal);
+}
+
+.minimal-select:disabled {
+	color: var(--text-faint);
+	opacity: 1;
+	cursor: default;
+}
+
+.status-row {
+	display: flex;
+	gap: 24px;
+	margin-left: 30px;
+	font-size: 14px;
+	color: var(--text-normal);
+}
+
+.reminders-header {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	font-size: 14px;
+	color: var(--text-muted);
+	margin-top: 8px;
+}
+
+.reminders-dropdown-row {
+	margin-left: 32px;
+}
+
+/* ---------------- Calendar profiles (right pane) ---------------- */
+/* Neutral-only styling: no accent/purple borders, no coloured outlines. */
+
+/* (retired) the under-title profile swatch strip — replaced by the single
+   `.title-profile` control to the left of the event title. */
+
+.profile-creator-wrapper {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+}
+
+/* The profile readout row is inert — only the leading "+" is interactive. */
+.calendar-selection-row {
+	gap: 12px;
+	pointer-events: none;
+	user-select: none;
+}
+
+.calendar-selection-row:hover {
+	background-color: transparent;
+}
+
+.calendar-selection-row .profile-creator-wrapper {
+	pointer-events: auto;
+}
+
+.profile-name-display {
+	font-size: 14px;
+	color: var(--text-normal);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* Bare "+" that opens the profile picker under the event title. No box. */
+.profile-picker-wrapper {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+}
+
+.profile-select-btn {
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	border: none;
+	background: transparent;
+	box-shadow: none !important;
+	cursor: pointer;
+	color: var(--text-muted);
+	font-size: 17px;
+	line-height: 1;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	transition: color 0.15s ease;
+}
+
+.profile-select-btn:hover,
+.profile-select-btn.is-open {
+	color: var(--text-normal);
+}
+
+/* ---------------- "Sleek menu" — mirrors the event tile context menu ---------------- */
+/* Same dark translucent surface, radius, shadow, item rows and colour row as the
+   right-click menu in the calendar grid, reused by both profile popovers. */
+
+.sleek-menu {
+	animation: eventContextMenuFadeIn 0.12s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+	transform-origin: top left;
+	background: rgba(28, 29, 32, 0.95);
+	backdrop-filter: blur(20px);
+	-webkit-backdrop-filter: blur(20px);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 12px;
+	box-shadow: 0 16px 36px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.3);
+	padding: 8px 6px;
+	user-select: none;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	box-sizing: border-box;
+}
+
+.sleek-menu-divider {
+	height: 1px;
+	background-color: rgba(255, 255, 255, 0.08);
+	margin: 8px 4px;
+}
+
+.sleek-menu-color-row {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: nowrap;
+	gap: 4px;
+	padding: 2px 8px 6px 8px;
+}
+
+/* COLOUR swatches in the profile menus (the COLOR row and its "more colours"
+   palette). These are always perfectly ROUND — identical to the swatches in the
+   event tile right-click menu. The circle is also forced inline with a clip path
+   so no other swatch rule can ever make them square. */
+.profile-color-swatch {
+	width: 20px;
+	height: 20px;
+	border: none;
+	border-radius: 50% !important;
+	clip-path: circle(50%);
+	padding: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	flex-shrink: 0;
+	cursor: pointer;
+	outline: none;
+	box-shadow: none !important;
+	transition: transform 0.12s ease;
+}
+
+.profile-color-swatch:hover {
+	transform: scale(1.15);
+}
+
+/* Selection is a subtle size bump only — never a border, a ring or a glow.
+   Declared after the :hover rule so a selected swatch keeps its size on hover. */
+.profile-color-swatch.is-selected {
+	transform: scale(1.18);
+}
+
+/* Inert until the user is naming a new profile or has armed an existing profile
+   swatch: dimmed, not clickable, and never ticked. */
+.profile-color-swatch:disabled,
+.profile-color-swatch:disabled:hover {
+	opacity: 0.3;
+	cursor: default;
+	transform: none;
+}
+
+.sleek-menu-more {
+	width: 26px;
+	height: 26px;
+	padding: 0;
+	border: none;
+	background: transparent;
+	box-shadow: none !important;
+	outline: none;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	color: rgba(255, 255, 255, 0.6);
+	transition: color 0.15s ease;
+}
+
+.sleek-menu-more:hover,
+.sleek-menu-more.is-active {
+	color: var(--text-normal, #ffffff);
+}
+
+/* The "more colours" droplet is inert until the colour row is armed. */
+.sleek-menu-more:disabled,
+.sleek-menu-more:disabled:hover {
+	opacity: 0.25;
+	cursor: default;
+	color: rgba(255, 255, 255, 0.25);
+}
+
+.sleek-menu-palette {
+	position: absolute;
+	right: 0;
+	bottom: calc(100% + 10px);
+	z-index: 1500;
+	width: 162px;
+	max-height: 162px;
+	overflow-y: auto;
+	overflow-x: hidden;
+	display: grid;
+	grid-template-columns: repeat(5, 1fr);
+	justify-items: center;
+	align-items: center;
+	gap: 6px;
+	padding: 10px;
+	box-sizing: border-box;
+	background: rgba(28, 29, 32, 0.98);
+	backdrop-filter: blur(20px);
+	-webkit-backdrop-filter: blur(20px);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 10px;
+	box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+
+.profile-picker-popover {
+	position: absolute;
+	top: calc(100% + 8px);
+	left: 0;
+	z-index: 1200;
+	min-width: 200px;
+	max-width: 260px;
+	max-height: min(320px, 50vh);
+	overflow-y: auto;
+	overflow-x: hidden;
+}
+
+.profile-picker-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	width: 100%;
+	box-sizing: border-box;
+	padding: 3px 8px;
+	border: none;
+	border-radius: 6px;
+	background: transparent;
+	box-shadow: none !important;
+	cursor: pointer;
+	color: var(--text-normal, #e2e8f0);
+	font-size: 14px;
+	font-family: inherit;
+	text-align: left;
+	transition: background-color 0.1s ease;
+}
+
+.profile-picker-item:hover {
+	background-color: rgba(255, 255, 255, 0.08);
+}
+
+.profile-menu-dot {
+	width: 15px;
+	height: 15px;
+	border-radius: 4px;
+	flex-shrink: 0;
+	box-sizing: border-box;
+}
+
+/* The "None" entry's dot: the same square, but neutral instead of a colour. */
+.profile-menu-dot--none {
+	background: rgba(255, 255, 255, 0.14);
+}
+
+.profile-menu-name {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.profile-creator-popover {
+	position: absolute;
+	z-index: 1200;
+	width: 244px;
+	padding: 12px 10px;
+	gap: 8px;
+}
+
+.profile-creator-popover.is-bottom {
+	bottom: calc(100% + 8px);
+	left: 0;
+}
+
+/* ---------- Profile creator inside the default right pane (Sidebar) ---------- */
+/* Same surface as the floating menu, but this variant flows in the column: no
+   absolute positioning, so it can never be clipped by the pane's scroll area. */
+.profile-creator-popover.is-inline {
+	position: relative;
+	width: 100%;
+	z-index: auto;
+	margin-top: 8px;
+}
+
+/* Read-only chips listing the profiles that already exist. */
+.sidebar-profile-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 10px;
+	/* A touch more breathing room between the heading and the list. */
+	margin-top: 8px;
+	padding: 0 4px;
+}
+
+.sidebar-profile-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 12.5px;
+	color: var(--text-muted);
+	white-space: nowrap;
+}
+
+.sidebar-profile-chip-dot {
+	width: 10px;
+	height: 10px;
+	border-radius: 3px;
+	flex-shrink: 0;
+}
+
+.profile-creator-heading {
+	font-size: 11px;
+	letter-spacing: 0.07em;
+	text-transform: uppercase;
+	color: rgba(255, 255, 255, 0.75);
+	padding: 4px 0 2px 8px;
+}
+
+/* Heading row: the "Calendar" label with the explicit close "X" on the right.
+   Clicking anywhere outside still dismisses the menu — this is just a clearer
+   affordance. Neutral styling only: no border, no accent colour. */
+.profile-creator-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding-right: 4px;
+}
+
+.profile-creator-close {
+	width: 20px;
+	height: 20px;
+	padding: 0;
+	border: none;
+	border-radius: 5px;
+	background: transparent;
+	box-shadow: none !important;
+	outline: none;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	box-sizing: border-box;
+	color: rgba(255, 255, 255, 0.5);
+	transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+.profile-creator-close:hover,
+.profile-creator-close:focus-visible {
+	background-color: rgba(255, 255, 255, 0.1);
+	color: var(--text-normal, #ffffff);
+}
+
+.profile-creator-empty {
+	font-size: 12.5px;
+	color: rgba(255, 255, 255, 0.4);
+	padding: 4px 8px;
+}
+
+.profile-creator-list {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	max-height: 168px;
+	overflow-y: auto;
+	overflow-x: hidden;
+}
+
+.profile-creator-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 2px 8px;
+	border-radius: 6px;
+}
+
+/* PROFILE swatches stay SQUARE — matching the swatch beside the event title.
+   Only the colour swatches above are round. */
+.profile-creator-row-swatch {
+	width: 15px;
+	height: 15px;
+	border-radius: 4px;
+	flex-shrink: 0;
+	border: none;
+	padding: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	box-sizing: border-box;
+	box-shadow: none !important;
+	transition: transform 0.12s ease;
+}
+
+.profile-creator-row-swatch:hover {
+	transform: scale(1.15);
+}
+
+/* Armed for a colour change via the COLOR row below: a subtle size bump only —
+   no border and no ring. This swatch never carries a tick (the tick belongs to
+   the colour swatch). Declared after :hover so it also wins while hovered. */
+.profile-creator-row-swatch.is-editing {
+	transform: scale(1.18);
+}
+
+.profile-creator-row-input {
+	flex: 1;
+	min-width: 0;
+	padding: 2px 6px;
+	font-size: 14px;
+	font-family: inherit;
+	color: var(--text-normal, #e2e8f0);
+	background: transparent;
+	border: none;
+	border-radius: 5px;
+	outline: none !important;
+	box-shadow: none !important;
+}
+
+/* The Default row's name is a static label (it can never be renamed), styled to
+   sit exactly where a profile row's editable name sits so the list reads as one
+   column. */
+.profile-creator-row-label {
+	flex: 1;
+	min-width: 0;
+	padding: 2px 6px;
+	font-size: 14px;
+	font-family: inherit;
+	line-height: 1.35;
+	color: var(--text-normal, #e2e8f0);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Trailing hint on the Default row — it has no delete button, so this slot tells
+   the user what the row actually does. */
+.profile-creator-row-note {
+	flex-shrink: 0;
+	font-size: 11.5px;
+	color: var(--text-faint);
+	padding-right: 2px;
+}
+
+/* Borderless editing — only the fill changes while a name is being typed. */
+.profile-creator-row-input:focus {
+	background: rgba(255, 255, 255, 0.08);
+}
+
+/* Icon-only delete — no box ever appears around it, hover only recolours it. */
+.profile-creator-row-del {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 3px;
+	border: none !important;
+	border-radius: 5px;
+	background: transparent !important;
+	background-color: transparent !important;
+	box-shadow: none !important;
+	color: rgba(255, 255, 255, 0.45);
+	cursor: pointer;
+	transition: color 0.1s ease;
+}
+
+.profile-creator-row-del:hover,
+.profile-creator-row-del:focus,
+.profile-creator-row-del:active {
+	background: transparent !important;
+	background-color: transparent !important;
+	box-shadow: none !important;
+	color: #ff5252;
+}
+
+.profile-creator-input {
+	width: 100%;
+	box-sizing: border-box;
+	padding: 7px 9px;
+	font-size: 13.5px;
+	font-family: inherit;
+	color: var(--text-normal, #e2e8f0);
+	background: rgba(255, 255, 255, 0.07);
+	border: none;
+	border-radius: 6px;
+	outline: none !important;
+	box-shadow: none !important;
+}
+
+.profile-creator-input::placeholder {
+	color: rgba(255, 255, 255, 0.35);
+}
+
+/* No border appears while typing — only a slightly brighter fill. */
+.profile-creator-input:focus {
+	border: none;
+	background: rgba(255, 255, 255, 0.11);
+}
+
+.profile-creator-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 10px;
+	padding: 4px 2px 0 2px;
+}
+
+.profile-creator-btn {
+	padding: 6px 14px;
+	font-size: 12.5px;
+	font-family: inherit;
+	border-radius: 6px;
+	cursor: pointer;
+	color: rgba(255, 255, 255, 0.75);
+	background: transparent;
+	border: none;
+	box-shadow: none !important;
+	transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+.profile-creator-btn:hover {
+	background-color: rgba(255, 255, 255, 0.08);
+	color: var(--text-normal, #e2e8f0);
+}
+
+.profile-creator-btn.is-primary {
+	font-weight: 600;
+	color: var(--text-normal, #e2e8f0);
+	background-color: rgba(255, 255, 255, 0.14);
+}
+
+.profile-creator-btn:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+.profile-palette-wrapper {
+	position: relative;
+	width: 22px;
+	height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+}
+
+
+/* Re-inject the colors from before just in case */
+
+
+
+/* Event Colors */
+.event-blue {
+	background-color: #99ccff;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-blue {
+	background-color: #99ccff;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-green {
+	background-color: #87e5aa;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-green {
+	background-color: #87e5aa;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-purple {
+	background-color: #b7a8f5;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-purple {
+	background-color: #b7a8f5;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-orange {
+	background-color: #ffc175;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-orange {
+	background-color: #ffc175;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-red {
+	background-color: #ff99a2;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-red {
+	background-color: #ff99a2;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-pink {
+	background-color: #ff9bd2;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-pink {
+	background-color: #ff9bd2;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-indigo {
+	background-color: #9eaeff;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-indigo {
+	background-color: #9eaeff;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-cyan {
+	background-color: #7ee8e8;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-cyan {
+	background-color: #7ee8e8;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-teal {
+	background-color: #77ebd0;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-teal {
+	background-color: #77ebd0;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-lime {
+	background-color: #d4eb7a;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-lime {
+	background-color: #d4eb7a;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-yellow {
+	background-color: #ffef6b;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-yellow {
+	background-color: #ffef6b;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-amber {
+	background-color: #ffd766;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-amber {
+	background-color: #ffd766;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-brown {
+	background-color: #cca791;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-brown {
+	background-color: #cca791;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-grey {
+	background-color: #d6d6d6;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-grey {
+	background-color: #d6d6d6;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-bluegrey {
+	background-color: #a6b3bd;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-bluegrey {
+	background-color: #a6b3bd;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-pastel-red {
+	background-color: #ffaaa8;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-pastel-red {
+	background-color: #ffaaa8;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-pastel-orange {
+	background-color: #ffc8a8;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-pastel-orange {
+	background-color: #ffc8a8;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-pastel-yellow {
+	background-color: #ffeca8;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-pastel-yellow {
+	background-color: #ffeca8;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-pastel-green {
+	background-color: #a8ffb9;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-pastel-green {
+	background-color: #a8ffb9;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-pastel-blue {
+	background-color: #a8d2ff;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-pastel-blue {
+	background-color: #a8d2ff;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-pastel-purple {
+	background-color: #cca8ff;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-pastel-purple {
+	background-color: #cca8ff;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-pastel-pink {
+	background-color: #ffa8e2;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-pastel-pink {
+	background-color: #ffa8e2;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-mint {
+	background-color: #99f2b8;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-mint {
+	background-color: #99f2b8;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-coral {
+	background-color: #ff9c9c;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-coral {
+	background-color: #ff9c9c;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-lavender {
+	background-color: #d1c4f7;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-lavender {
+	background-color: #d1c4f7;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+/* Additional pastel tones */
+.event-sky {
+	background-color: #9fd4ff;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-sky {
+	background-color: #9fd4ff;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-ice {
+	background-color: #bfe9ff;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-ice {
+	background-color: #bfe9ff;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-azure {
+	background-color: #9fc4ff;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-azure {
+	background-color: #9fc4ff;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-aqua {
+	background-color: #a3f0e6;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-aqua {
+	background-color: #a3f0e6;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-turquoise {
+	background-color: #8fe6d8;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-turquoise {
+	background-color: #8fe6d8;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-seafoam {
+	background-color: #b0f0d0;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-seafoam {
+	background-color: #b0f0d0;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-emerald {
+	background-color: #a3e8bf;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-emerald {
+	background-color: #a3e8bf;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-sage {
+	background-color: #c4e2b0;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-sage {
+	background-color: #c4e2b0;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-olive {
+	background-color: #d8e29a;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-olive {
+	background-color: #d8e29a;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-gold {
+	background-color: #ffe49a;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-gold {
+	background-color: #ffe49a;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-banana {
+	background-color: #fff2a8;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-banana {
+	background-color: #fff2a8;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-apricot {
+	background-color: #ffd0a6;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-apricot {
+	background-color: #ffd0a6;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-peach {
+	background-color: #ffd9b3;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-peach {
+	background-color: #ffd9b3;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-salmon {
+	background-color: #ffb3a7;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-salmon {
+	background-color: #ffb3a7;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-rose {
+	background-color: #ffb8c6;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-rose {
+	background-color: #ffb8c6;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-blush {
+	background-color: #ffc2cc;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-blush {
+	background-color: #ffc2cc;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-magenta {
+	background-color: #f7a8d8;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-magenta {
+	background-color: #f7a8d8;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-orchid {
+	background-color: #e6b0f2;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-orchid {
+	background-color: #e6b0f2;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-violet {
+	background-color: #c3b0f5;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-violet {
+	background-color: #c3b0f5;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-periwinkle {
+	background-color: #b3c0f7;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-periwinkle {
+	background-color: #b3c0f7;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+/* Muted mid tones. Added for the timer palette, which only offers swatches deep
+   enough to hold dark text: tans, browns and greys that read as softened versions
+   of the palette rather than the washed-out pastels. Same dark ink as every other
+   event colour. */
+.event-tan {
+	background-color: #d6b483;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-tan {
+	background-color: #d6b483;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-sand {
+	background-color: #dfc9a0;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-sand {
+	background-color: #dfc9a0;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-khaki {
+	background-color: #c9bd8b;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-khaki {
+	background-color: #c9bd8b;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-mocha {
+	background-color: #b98d6c;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-mocha {
+	background-color: #b98d6c;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-cocoa {
+	background-color: #a97c5c;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-cocoa {
+	background-color: #a97c5c;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-rust {
+	background-color: #bd7d5f;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-rust {
+	background-color: #bd7d5f;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-clay {
+	background-color: #c69480;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-clay {
+	background-color: #c69480;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-taupe {
+	background-color: #b2a596;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-taupe {
+	background-color: #b2a596;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-stone {
+	background-color: #b5b2ac;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-stone {
+	background-color: #b5b2ac;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-ash {
+	background-color: #a9a79f;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-ash {
+	background-color: #a9a79f;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-slate {
+	background-color: #97a2ab;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-slate {
+	background-color: #97a2ab;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-moss {
+	background-color: #a5ad7d;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-moss {
+	background-color: #a5ad7d;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.event-plum {
+	background-color: #ab8fa6;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+.theme-dark .event-plum {
+	background-color: #ab8fa6;
+	color: rgba(0, 0, 0, 0.85);
+}
+
+/* Mini Calendar Styles */
+.empty-pane {
+	background-color: var(--background-primary);
+}
+
+.mini-calendar {
+	display: flex;
+	flex-direction: column;
+	padding: 16px;
+}
+
+.mini-calendar-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 24px;
+}
+
+
+
+.window-actions {
+	display: flex;
+	gap: 16px;
+	color: var(--text-muted);
+}
+
+.mini-calendar-grid {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.mini-calendar-weekdays {
+	display: grid;
+	grid-template-columns: repeat(7, 1fr);
+	text-align: center;
+	font-size: 12px;
+	color: var(--text-muted);
+	font-weight: 500;
+}
+
+.mini-calendar-days {
+	display: grid;
+	grid-template-columns: repeat(7, 1fr);
+	row-gap: 16px;
+	text-align: center;
+	font-size: 13px;
+	color: var(--text-normal);
+}
+
+.mini-day {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 28px;
+	width: 28px;
+	margin: 0 auto;
+	border-radius: 6px;
+}
+
+.mini-day.dimmed {
+	color: var(--text-faint);
+}
+
+/* Today chip: a whisper of the accent as a background wash, so the date only
+   hints that it is accented — never a solid, glossy block of colour. */
+.mini-day.today {
+	background-color: var(--sleek-accent-soft, rgba(255, 255, 255, 0.1));
+	color: var(--sleek-accent, var(--text-normal));
+}
+
+
+.native-time-input,
+.native-date-input {
+	background: transparent;
+	border: none;
+	color: inherit;
+	font-family: inherit;
+	font-size: inherit;
+	font-weight: inherit;
+	padding: 0;
+	cursor: pointer;
+	outline: none;
+}
+
+.native-time-input::-webkit-calendar-picker-indicator,
+.native-date-input::-webkit-calendar-picker-indicator {
+	opacity: 0;
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	cursor: pointer;
+}
+
+.native-time-input,
+.native-date-input {
+	position: relative;
+	display: inline-block;
+}
+
+.sleek-calendar-app .current-month {
+	display: flex;
+	align-items: center;
+	padding: 4px 8px;
+	border-radius: 6px;
+	cursor: pointer;
+	transition: background-color 0.15s ease, color 0.15s ease, filter 0.15s ease;
+}
+
+.sleek-calendar-app .current-month:hover {
+	background-color: var(--background-modifier-hover);
+	filter: brightness(1.15);
+}
+
+.sleek-calendar-app .day-header {
+	cursor: pointer;
+}
+
+.sleek-calendar-app .day-number {
+	font-size: 32px !important;
+	font-weight: 700 !important;
+	line-height: 1 !important;
+	letter-spacing: -0.5px;
+	color: rgba(255, 255, 255, 0.38) !important;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: color 0.15s ease;
+}
+
+.theme-light .sleek-calendar-app .day-number {
+	color: rgba(0, 0, 0, 0.38) !important;
+}
+
+.sleek-calendar-app .day-name {
+	font-weight: 500 !important;
+	font-size: 12px !important;
+	text-transform: lowercase;
+	letter-spacing: 0.3px;
+	line-height: 1 !important;
+	color: rgba(255, 255, 255, 0.38) !important;
+	margin-top: 3px;
+	transition: color 0.15s ease;
+}
+
+.theme-light .sleek-calendar-app .day-name {
+	color: rgba(0, 0, 0, 0.38) !important;
+}
+
+/* Today: only the weekday name carries the accent. The date/number stays fully
+   neutral on purpose so it never turns a coloured hue, even when an accent is
+   selected in the settings. */
+.sleek-calendar-app .day-header-inner.today .day-number {
+	font-weight: 800 !important;
+	color: var(--text-normal) !important;
+	text-shadow: none !important;
+}
+
+.theme-light .sleek-calendar-app .day-header-inner.today .day-number {
+	color: var(--text-normal) !important;
+	text-shadow: none !important;
+}
+
+.sleek-calendar-app .day-header-inner.today .day-name {
+	font-weight: 700 !important;
+	color: var(--sleek-accent, #ffffff) !important;
+}
+
+.theme-light .sleek-calendar-app .day-header-inner.today .day-name {
+	color: var(--sleek-accent, #000000) !important;
+}
+
+.sleek-calendar-app .day-header:hover .day-header-inner,
+.sleek-calendar-app .day-header-inner:hover {
+	opacity: 1 !important;
+	background-color: var(--background-modifier-hover) !important;
+	filter: brightness(1.15) !important;
+}
+
+.sleek-calendar-app .day-header:hover .day-name,
+.sleek-calendar-app .day-header-inner:hover .day-name {
+	color: var(--text-normal) !important;
+}
+
+.sleek-calendar-app .day-header:hover .day-number,
+.sleek-calendar-app .day-header-inner:hover .day-number {
+	color: var(--text-normal) !important;
+}
+
+.sleek-calendar-app .day-header-tick {
+	width: 1px;
+	height: 18px;
+	background-color: rgba(255, 255, 255, 0.25);
+	margin-top: 6px;
+	flex-shrink: 0;
+}
+
+.theme-light .sleek-calendar-app .day-header-tick {
+	background-color: rgba(0, 0, 0, 0.2);
+}
+
+.current-time-line,
+.current-time-line *,
+.current-time-marker {
+	pointer-events: none !important;
+	user-select: none !important;
+}
+
+.current-time-line {
+	position: absolute;
+	left: 0;
+	right: 0;
+	height: 1px;
+	background-color: transparent !important;
+	/* Deliberately un-accented: the "now" rule is always a neutral, theme-aware
+	   line, even when an accent colour is selected, so it never competes with the
+	   accent. It is painted as a gradient rather than a flat fill so the open end
+	   dissolves into the grid instead of stopping with a hard, cut-off edge. The
+	   left end stays solid because that is where the "now" arrow sits. */
+	background-image: linear-gradient(to right,
+			rgba(255, 255, 255, 0.5) 0,
+			rgba(255, 255, 255, 0.5) calc(100% - 56px),
+			transparent 100%) !important;
+	/* Sits in the lowest layer so event tiles always paint above it. */
+	z-index: 0;
+}
+
+/* The "now" rule is capped with a small arrow rather than a plain dot, so it reads
+   as a pointer working its way across the day instead of a bare line. The head is
+   drawn with borders (a zero-size box plus a thick left border) so it stays crisp
+   at any time-scale zoom. */
+.current-time-marker {
+	position: absolute;
+	left: 0;
+	top: 50%;
+	width: 0;
+	height: 0;
+	margin-top: -5px;
+	border-radius: 0;
+	background-color: transparent !important;
+	border-top: 5px solid transparent !important;
+	border-bottom: 5px solid transparent !important;
+	border-left: 8px solid rgba(255, 255, 255, 0.9) !important;
+}
+
+.theme-light .current-time-line {
+	background-color: transparent !important;
+	background-image: linear-gradient(to right,
+			rgba(0, 0, 0, 0.32) 0,
+			rgba(0, 0, 0, 0.32) calc(100% - 56px),
+			transparent 100%) !important;
+}
+
+.theme-light .current-time-marker {
+	border-left-color: rgba(0, 0, 0, 0.6) !important;
+}
+
+/* While a tile is dragged the rule above doubles as a drop indicator: it is
+   positioned on the tile's top edge and stepped above the tiles (see the inline
+   z-index). In this state it turns into a neutral dashed ghost line, so it reads
+   as a temporary marker of where the tile will land rather than as the clock
+   line. It returns to its usual neutral "now" position on drop. */
+.current-time-line.is-drag-indicator {
+	height: 3px;
+	margin-top: -1px;
+	background-color: transparent !important;
+	background-image: repeating-linear-gradient(to right,
+			rgba(255, 255, 255, 0.55) 0,
+			rgba(255, 255, 255, 0.55) 5px,
+			transparent 5px,
+			transparent 13px) !important;
+	box-shadow: none !important;
+}
+
+.theme-light .current-time-line.is-drag-indicator {
+	background-image: repeating-linear-gradient(to right,
+			rgba(0, 0, 0, 0.45) 0,
+			rgba(0, 0, 0, 0.45) 5px,
+			transparent 5px,
+			transparent 13px) !important;
+}
+
+/* The arrow cap belongs to the clock line; a drop marker does not need it. */
+.current-time-line.is-drag-indicator .current-time-marker {
+	display: none;
+}
+
+/* The current hour stays plain on purpose: the accent is reserved for today's
+   date and the now rule, so the hour itself is never tinted. */
+.time-slot-label.current-hour {
+	color: var(--text-normal) !important;
+	font-weight: 700 !important;
+}
+
+.sleek-accent-off .day-header-inner.today .day-name {
+	color: var(--text-normal) !important;
+}
+
+.sleek-accent-off .mini-day.today {
+	background-color: transparent !important;
+	color: var(--text-normal) !important;
+	box-shadow: inset 0 0 0 1.5px var(--background-modifier-border) !important;
+}
+
+/* Lift the day columns above the decorative current-time line.
+   This makes the "line always under the tiles" guarantee explicit and
+   independent of DOM ordering. */
+.days-body>.day-column {
+	z-index: 1;
+}
+
+/* A tile that has just "begun" (a freshly created, duplicated, or dropped
+   event) drops in with a short, springy bounce: it falls from a touch above,
+   overshoots very slightly, and settles. Only `opacity`/`translate`/`scale`
+   move, so it never fights the drag layer (which owns `transform`) or the
+   column-collapse animation, and no fill mode is used so the finished animation
+   always gives control straight back to the inline styles. Neutral — no accent,
+   no border. The class is added/removed from React (MainGrid) for one shot. */
+@keyframes sleekTileBegin {
+	0% {
+		opacity: 0;
+		translate: 0 -16px;
+		scale: 0.86;
+	}
+
+	55% {
+		opacity: 1;
+		translate: 0 3px;
+		scale: 1.018;
+	}
+
+	78% {
+		opacity: 1;
+		translate: 0 -1.5px;
+		scale: 0.997;
+	}
+
+	100% {
+		opacity: 1;
+		translate: 0 0;
+		scale: 1;
+	}
+}
+
+.placeholder-event.tile-begun {
+	animation: sleekTileBegin 0.62s cubic-bezier(0.22, 1, 0.36, 1);
+	will-change: translate, scale, opacity;
+}
+
+/* Clicking a day header collapses that whole column: its tiles drift up out of
+   view so the column reads as empty, and clicking again drops them back in.
+   The motion itself is driven from React (MainGrid) using the independent
+   `translate`/`scale`/`opacity` properties, so CSS only owns the header
+   affordance and the reduced-motion escape hatch. Neutral — no accent, no border. */
+.day-header-inner {
+	cursor: pointer;
+}
+
+.day-header-inner.is-collapsed {
+	opacity: 0.45;
+}
+
+/* Stepping one day at a time with the ‹ / › arrows briefly washes the header of
+   the day the view just moved to, so it is obvious where you landed. Neutral:
+   the theme's own hover wash fading back out — no accent colour, no border. */
+@keyframes sleekDayJumpPulse {
+	0% {
+		background-color: transparent;
+	}
+
+	14% {
+		background-color: var(--background-modifier-hover);
+	}
+
+	62% {
+		background-color: var(--background-modifier-hover);
+	}
+
+	100% {
+		background-color: transparent;
+	}
+}
+
+.day-header-inner.is-jump-highlight {
+	animation: sleekDayJumpPulse 1.2s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.day-column .placeholder-event {
+		transition: none !important;
+	}
+
+	.placeholder-event.tile-begun {
+		animation: none !important;
+	}
+
+	.day-header-inner.is-jump-highlight {
+		animation: none !important;
+	}
+}
+
+/* Document Drag and Drop Target on Event */
+.placeholder-event.doc-drop-target {
+	outline: 2px dashed rgba(255, 255, 255, 0.5) !important;
+	outline-offset: -2px;
+	box-shadow: 0 0 10px rgba(0, 0, 0, 0.25);
+	filter: brightness(1.1);
+}
+
+/* Attachment Section Drop State in RightPane */
+.pane-section.attachment-section.attachment-drag-over {
+	background-color: var(--background-modifier-hover);
+	outline: 2px dashed var(--background-modifier-border-hover);
+	outline-offset: -2px;
+	border-radius: 6px;
+}
+
+/* Linked Notes Chips */
+.linked-notes-list {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.linked-note-chip {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 10px;
+	border-radius: 6px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-normal);
+	font-size: 13px;
+	cursor: pointer;
+	transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.linked-note-chip:hover {
+	background: var(--background-modifier-hover);
+	border-color: var(--background-modifier-border-hover, rgba(255, 255, 255, 0.15));
+}
+
+.linked-note-chip svg {
+	flex-shrink: 0;
+	color: var(--text-muted);
+}
+
+.linked-note-chip:hover svg {
+	color: var(--text-normal);
+}
+
+.linked-note-title {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-weight: 500;
+}
+
+.remove-note-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	border-radius: 4px;
+	color: var(--text-muted);
+	font-size: 14px;
+	line-height: 1;
+	cursor: pointer;
+	opacity: 0.6;
+	transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.remove-note-btn:hover {
+	opacity: 1;
+	background-color: var(--background-modifier-error-hover, rgba(230, 80, 80, 0.2));
+	color: var(--text-error, #f05050);
+}
+
+/* Note Mention Autocomplete Popover */
+.note-mention-popover {
+	position: absolute;
+	top: calc(100% + 4px);
+	left: 0;
+	right: 0;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28), 0 1px 3px rgba(0, 0, 0, 0.15);
+	z-index: 1000;
+	max-height: 200px;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	padding: 4px;
+}
+
+.note-mention-header {
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: var(--text-faint);
+	padding: 4px 8px 2px 8px;
+	user-select: none;
+}
+
+.note-mention-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 8px;
+	border-radius: 4px;
+	cursor: pointer;
+	user-select: none;
+	transition: background-color 0.1s ease;
+}
+
+.note-mention-item:hover,
+.note-mention-item.is-selected {
+	background: var(--background-modifier-hover);
+}
+
+.note-mention-icon {
+	flex-shrink: 0;
+	color: var(--text-muted);
+}
+
+.note-mention-item.is-selected .note-mention-icon {
+	color: var(--text-normal);
+}
+
+.note-mention-info {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.note-mention-title {
+	font-size: 12px;
+	font-weight: 500;
+	color: var(--text-normal);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.note-mention-path {
+	font-size: 10px;
+	color: var(--text-muted);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.sidebar-todo-row {
+	cursor: default;
+	box-sizing: border-box;
+	transition: background-color 0.12s ease;
+}
+
+.sidebar-todo-row:hover {
+	background-color: var(--background-modifier-hover) !important;
+}
+
+.sidebar-todo-row .todo-delete-btn {
+	opacity: 0;
+	transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.sidebar-todo-row:hover .todo-delete-btn {
+	opacity: 0.6 !important;
+}
+
+.sidebar-todo-row .todo-delete-btn:hover {
+	opacity: 1 !important;
+	color: var(--text-error, #f87171) !important;
+	background-color: var(--background-modifier-hover) !important;
+}
+
+body.is-duplicating-drag,
+body.is-duplicating-drag * {
+	cursor: copy !important;
+}
+
+/* While a calendar tile is being dragged the timer column is inert: it takes no
+   hover, no focus and no pointer events, so it can neither react to the drag nor
+   nudge the layout out from under it. dnd-kit resolves drop targets
+   geometrically, so the calendar's own droppables are unaffected. */
+body.sleek-tile-dragging .timer-zone,
+body.sleek-tile-dragging .timer-zone * {
+	pointer-events: none !important;
+}
+
+@keyframes eventBubbleFadeIn {
+	from {
+		opacity: 0;
+		transform: scale(0.85);
+	}
+
+	to {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
+.event-delete-bubble {
+	animation: eventBubbleFadeIn 0.16s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+	background: transparent !important;
+	border: none !important;
+	outline: none !important;
+	box-shadow: none !important;
+}
+
+@keyframes eventContextMenuFadeIn {
+	from {
+		opacity: 0;
+		transform: scale(0.96) translateY(-2px);
+	}
+
+	to {
+		opacity: 1;
+		transform: scale(1) translateY(0);
+	}
+}
+
+.event-context-menu {
+	animation: eventContextMenuFadeIn 0.12s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+	transform-origin: top left;
+}
+
+.event-context-menu-item {
+	transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+@keyframes timerBounce {
+
+	0%,
+	100% {
+		transform: translateY(0);
+	}
+
+	50% {
+		transform: translateY(4px);
+	}
+}
+
+.timer-bounce {
+	animation: timerBounce 0.5s ease-in-out;
+}
+
+/* Past Events Indicator */
+.is-past-event {
+	opacity: 0.65;
+	filter: saturate(0.85);
+	transition: opacity 0.2s ease, filter 0.2s ease;
+}
+
+.is-past-event:hover,
+.is-past-event.selected {
+	opacity: 0.9;
+	filter: saturate(1);
+}
+
+/* Whole-day events read as a backdrop: a touch more transparent than a normal
+   tile so any timed events stacked on top of them stand out more. Pairs with
+   the z-index: 0 the tile is given, so they always sit behind their column-mates.
+   (Declared after the past-event rules so an all-day tile keeps this opacity
+   even when it is also a past event.) */
+.placeholder-event.is-allday-event {
+	opacity: 0.85;
+}
+
+/* A whole-day tile is as tall as the day itself, so its label would otherwise
+   scroll far above the fold. Pin the tile's content to the top of the visible
+   area instead: the title/time (and any details) stay readable at any scroll
+   position, then ride away naturally once the tile's bottom edge passes.
+   Sticky works here because every ancestor up to the `.week-grid` scroller is
+   `overflow: visible` — the tile itself is explicitly `overflow: visible`
+   (see `.placeholder-event`). The content sits inside the tile, so the tile's
+   own colour keeps it legible the whole way down. */
+.placeholder-event.is-allday-event:not(.small-tile) .all-day-content {
+	position: sticky;
+	top: 2px;
+	/* Guard in case the inline height is ever dropped: sticky can only travel
+	   when the block is content-sized. */
+	height: auto;
+	/* A whisper of lag: while the grid is scrolled the label dips a few pixels
+	   past its pinned spot and then eases back onto the tile, so it reads as if it
+	   is trying to keep up with the scroll rather than being glued to the edge.
+	   MainGrid drives the offset through this variable. */
+	transform: translateY(var(--sleek-allday-lag, 0px));
+}
+
+.timer-scale-grip {
+	background-image:
+		repeating-linear-gradient(to right, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5) 2px, transparent 2px, transparent 30px),
+		repeating-linear-gradient(to right, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0.25) 2px, transparent 2px, transparent 10px);
+	background-size: 100% 100%, 100% 10px;
+	background-position: 0px bottom, 0px bottom;
+	background-repeat: repeat-x, repeat-x;
+	border-bottom-left-radius: inherit;
+	border-bottom-right-radius: inherit;
+	transition: opacity 0.2s ease;
+	animation: scale-move 1.5s infinite linear;
+	animation-play-state: paused;
+}
+
+
+
+.timer-tile {
+	border-top-left-radius: 6px !important;
+	border-top-right-radius: 6px !important;
+	border-bottom-left-radius: 6px !important;
+	border-bottom-right-radius: 6px !important;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	touch-action: none;
+}
+
+.theme-dark .timer-tile {
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+
+
+
+
+.timer-tile:hover {
+	filter: brightness(1.06) saturate(1.08) !important;
+	box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25) !important;
+}
+
+.theme-light .timer-tile:hover {
+	filter: brightness(1.04) saturate(1.05) !important;
+	box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18) !important;
+}
+
+.timer-tile .large-timer-content {
+	border-top-left-radius: 6px !important;
+	border-top-right-radius: 6px !important;
+	padding: 8px !important;
+}
+
+.timer-tile .small-tile-content {
+	border-top-left-radius: 6px !important;
+	border-top-right-radius: 6px !important;
+	padding: 12px 14px 6px 14px !important;
+}
+
+/* A timer tile's label is a scanner, so it has to leave the tile through the tile's
+   own edge rather than through a band of padding. The tile's horizontal padding and
+   its hairline transparent border sit outside the content's clip box and would stop
+   the label a good ten pixels short of the edge, so hand that space back to it. */
+.placeholder-event.timer-tile {
+	padding-left: 0 !important;
+	padding-right: 0 !important;
+	border-left-width: 0 !important;
+	border-right-width: 0 !important;
+}
+
+/* A to-do timer's title scans across the tile on a single line: two copies of the
+   label ride a track that shifts by exactly one copy (its own 50% plus half of the
+   gap), so the title runs off one edge and a fresh one follows it in with no seam.
+   There is no fade: the timestamp, which sits above the lane in the tile's own
+   colour, is what the label disappears under. The animation is always attached and
+   only `animation-play-state` is toggled, so pausing the timer freezes the label
+   mid-flight and resuming carries on from the same spot. */
+.timer-title {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	/* One line only, centred in the tile and running its full width, so the label slides
+	   straight into the time readout at the right and vanishes under it. */
+	display: flex;
+	align-items: center;
+	/* Run the label out to the tile's own edge instead of stopping at the content
+	   padding: the tile hands back its own horizontal padding and border (see
+	   `.placeholder-event.timer-tile`), so -8px lands exactly on the tile edge. */
+	margin-left: -8px;
+}
+
+/* The short layout puts the time readout on the right: the left edge still reaches
+   the tile edge, and the right closes the row gap so no dead space is left before
+   the time begins. */
+.timer-tile.small-tile .timer-title {
+	margin-left: -14px;
+}
+
+.timer-title-track {
+	display: inline-flex;
+	align-items: center;
+	flex: none;
+	width: max-content;
+	gap: 18px;
+	animation: sleekTimerTitleScan 10s linear infinite;
+	animation-play-state: paused;
+}
+
+.timer-title-track.is-playing {
+	animation-play-state: running;
+}
+
+.timer-title-text {
+	font-weight: 600;
+	/* Larger than a fitted title would dare: this label is a scanner, so the whole
+	   title is always going to come round again — it does not have to fit. */
+	font-size: 18px;
+	line-height: 1.3;
+	/* The to-do item's title reads white on the timer tile; the time readout below
+	   keeps its own darker treatment. */
+	color: #ffffff;
+	white-space: nowrap;
+}
+
+.timer-tile.small-tile .timer-title-text {
+	font-size: 15px;
+}
+
+@keyframes sleekTimerTitleScan {
+	from {
+		transform: translateX(0);
+	}
+
+	to {
+		/* 50% is one copy plus half the gap; the extra 9px is the other half, so the
+		   second copy lands exactly where the first one began. */
+		transform: translateX(calc(-50% - 9px));
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.timer-title-track {
+		animation: none !important;
+	}
+}
+
+
+@keyframes timer-shimmer {
+	0% {
+		background-position: -200% 0;
+	}
+
+	100% {
+		background-position: 200% 0;
+	}
+}
+
+/* The active tile's sheen rides a dedicated overlay that sits *above* the tile's
+   content rather than on the content's own background. Painted underneath (as a
+   background-image on `.event-content`) the band had to pass behind the time readout,
+   which carries its own opaque patch of the tile's colour so the scanning label can
+   slide out of sight beneath it — and that patch punched a straight-edged hole in the
+   light, leaving the outline of a box around the readout as the sheen swept past.
+   Lifted to an overlay the band crosses the digits and the label alike, so the whole
+   tile catches the light in one unbroken motion. */
+.timer-tile.is-active::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	z-index: 40;
+	pointer-events: none;
+	border-radius: 6px;
+	background-image: linear-gradient(120deg,
+			rgba(255, 255, 255, 0) 30%,
+			rgba(255, 255, 255, 0.08) 50%,
+			rgba(255, 255, 255, 0) 70%);
+	background-size: 200% 100%;
+	animation: timer-shimmer 3s infinite linear;
+}
+
+.timer-tile.is-active .event-content {
+	background-image: none;
+	box-shadow: none;
+}
+
+@keyframes scale-move {
+	from {
+		background-position: 0px bottom, 0px bottom;
+	}
+
+	to {
+		background-position: -30px bottom, -30px bottom;
+	}
+}
+
+.timer-scale-grip.active {
+	animation-play-state: running;
+}
+
+
+.timer-scale-grip.minimal {
+	background-image: none;
+	animation: none;
+}
+
+.timer-scale-grip.minimal::after {
+	content: '';
+	position: absolute;
+	bottom: 3px;
+	left: 50%;
+	transform: translateX(-50%);
+	width: 32px;
+	height: 3px;
+	border-radius: 2px;
+	background-color: rgba(0, 0, 0, 0.25);
+}
+
+.theme-dark .timer-scale-grip.minimal::after {
+	background-color: rgba(255, 255, 255, 0.35);
+}
+
+/* ==========================================================================
+   Optional picture background ("Calendar background" setting)
+   The picture is anchored to the bottom-left corner of the day-columns area and
+   reads as a soft corner wash: a SQUARE vignette (not a circle) melts the
+   picture away into the calendar from ALL FOUR edges, so the centre stays
+   visible while every side feathers out. Because the four edge ramps overlap at
+   the corners, the corners keep more of the app background than the mid-edges,
+   which gives the shape a slightly "rounded cube" silhouette rather than an
+   oval one. The TOP edge is deliberately cut deeper than the left, right and
+   bottom edges, and on top of that a strong dark ramp holds across the upper
+   half, so the picture always reads heavier and darker along the top. The
+   "Background dim" setting lays a neutral tint over whatever survives the
+   vignette so events stay legible.
+   A very slow, barely-there "breathing" opacity swell keeps it feeling alive.
+   It never paints behind the whole app window, the side panels, the day header
+   or the time gutter. It is rendered on .week-grid-container (a non-scrolling
+   box) so the wash stays put while events scroll over it.
+   A ::before layer carries the image (so an optional invert filter never
+   touches UI content) and a ::after layer is the vignette mask and legibility
+   tint drawn above it. Neutral colors only — no accents, no borders.
+   ========================================================================== */
+
+.sleek-calendar-app.sleek-has-bg .week-grid-container {
+	position: relative;
+}
+
+/* Image layer: below the 82px day header, right of the 50px time gutter.
+   Anchored to the bottom-left corner so the picture grows out of that corner.
+   The breathe animation is a shallow opacity swell — slow enough to be felt
+   rather than noticed. */
+.sleek-calendar-app.sleek-has-bg .week-grid-container::before {
+	content: '';
+	position: absolute;
+	top: 82px;
+	left: 50px;
+	right: 0;
+	bottom: 0;
+	z-index: 0;
+	pointer-events: none;
+	background-image: var(--sleek-bg-image);
+	background-size: var(--sleek-bg-size, cover);
+	background-repeat: var(--sleek-bg-repeat, no-repeat);
+	background-position: left bottom;
+	filter: var(--sleek-bg-filter, none);
+	animation: sleekBgBreathe 11s ease-in-out infinite alternate;
+}
+
+/* Very slow breathing: a shallow opacity swell over a 22s round trip (11s each
+   way) so the picture gently inhales and exhales. Subtle by design. */
+@keyframes sleekBgBreathe {
+	from {
+		opacity: 0.86;
+	}
+
+	to {
+		opacity: 1;
+	}
+}
+
+/* Respect users who ask the system to avoid motion. */
+@media (prefers-reduced-motion: reduce) {
+	.sleek-calendar-app.sleek-has-bg .week-grid-container::before {
+		animation: none;
+	}
+}
+
+/* Vignette mask + legibility tint. Every stop is var(--background-primary) —
+   never black — so all of this melts into the calendar without a hard seam.
+   Layers 1–4 — THE SQUARE VIGNETTE: a ramp per edge. The right, left and bottom
+   edges melt away across the first 24%, while the TOP edge is cut DEEPER (a 6%
+   solid hold, then a fade out to 46%) so the picture is always heavier along the
+   top than the other three sides. Because the ramps overlap at the corners the
+   corners keep more of the app background than the mid-edges, so the picture
+   reads as a softly "rounded cube" silhouette instead of a circular one.
+   Layer 5 — TOP SHADE (the secondary vignette): a distinctly darker ramp that
+   HOLDS a strong, flat shadow across the top and only starts releasing at 34%,
+   gone by 62%. Because the (now deeper) top-edge vignette above already covers
+   the first 46%, a ramp that merely faded from 0% would have its darkest part
+   swallowed by that edge feather — holding the plateau out to 34% is what makes
+   the upper half of the visible picture read as clearly darker.
+   Layer 6 — LEGIBILITY TINT: the "Background dim" setting laid flat over the
+   picture that survives the vignette so events stay readable.
+   Tuning: `24%` is the width of the side/bottom feather and `46%` the deeper top
+   feather (raise either for a softer, larger vignette); the top shade holds to
+   `34%` and completes at `62%` — push those stops down to carry the darker top
+   further. Its alpha is `2×` the dim setting (capped at 1), i.e. the extra
+   darkening up top is twice the base dim, so even a low dim reads clearly darker
+   along the top.
+   Neutral only — no accents, no borders. */
+.sleek-calendar-app.sleek-has-bg .week-grid-container::after {
+	content: '';
+	position: absolute;
+	top: 82px;
+	left: 50px;
+	right: 0;
+	bottom: 0;
+	z-index: 0;
+	pointer-events: none;
+	background-image:
+		linear-gradient(to right, var(--background-primary) 0%, transparent 24%),
+		linear-gradient(to left, var(--background-primary) 0%, transparent 24%),
+		linear-gradient(to bottom, var(--background-primary) 0%, var(--background-primary) 6%, transparent 46%),
+		linear-gradient(to top, var(--background-primary) 0%, transparent 24%),
+		linear-gradient(to bottom,
+			rgba(0, 0, 0, calc(min(var(--sleek-bg-dim, 0.45) * 2, 1))) 0%,
+			rgba(0, 0, 0, calc(min(var(--sleek-bg-dim, 0.45) * 2, 1))) 34%,
+			transparent 62%),
+		linear-gradient(rgba(0, 0, 0, var(--sleek-bg-dim, 0.45)), rgba(0, 0, 0, var(--sleek-bg-dim, 0.45)));
+}
+
+/* Settings: live preview thumbnail + neutral slider (never purple). */
+.sleek-bg-preview {
+	height: 130px;
+	margin-bottom: 14px;
+	border-radius: 8px;
+	border: 1px solid var(--background-modifier-border);
+	background-color: var(--background-primary);
+	background-position: left bottom;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+	color: var(--text-faint);
+	font-size: 12px;
+	padding: 0 12px;
+	box-sizing: border-box;
+	overflow: hidden;
+}
+
+/* Force a neutral slider (Obsidian's default accent is purple — banned). */
+.sleek-bg-dim-setting {
+	--interactive-accent: var(--text-muted) !important;
+	--interactive-accent-rgb: 128, 128, 128 !important;
+	--slider-thumb-color: var(--text-muted) !important;
+	--slider-thumb-border-color: transparent !important;
+}
+
+.sleek-bg-dim-setting input[type="range"] {
+	accent-color: var(--text-muted) !important;
+	background-image: none !important;
+	background-color: var(--background-modifier-border) !important;
+}
+
+.sleek-bg-dim-setting input[type="range"]::-webkit-slider-runnable-track {
+	background-color: var(--background-modifier-border) !important;
+}
+
+.sleek-bg-dim-setting input[type="range"]::-webkit-slider-thumb {
+	background-color: var(--text-muted) !important;
+	border: none !important;
+	box-shadow: none !important;
+}
+
+.sleek-bg-dim-setting input[type="range"]::-moz-range-track {
+	background-color: var(--background-modifier-border) !important;
+}
+
+.sleek-bg-dim-setting input[type="range"]::-moz-range-thumb {
+	background-color: var(--text-muted) !important;
+	border: none !important;
+	box-shadow: none !important;
+}
+
+/* ==========================================================================
+   Optional "Doodle backdrop" (Settings → Calendar background → Doodle backdrop)
+   A faint, hand-drawn ink wash that lingers behind the grid. This is NOT a
+   picture: the artwork is an alpha-only mask (see src/utils/doodleBackground.ts)
+   painted with `background-color: var(--text-normal)`, so it follows the theme
+   (dark or light) and never introduces an accent or a coloured border.
+   The mask is deliberately zoomed in (a large mask-size) and the same tile is
+   repeated twice at two different scales/offsets. That means (a) you only ever
+   see vague fragments of each doodle — never a whole legible object — and
+   (b) the obvious pattern repeat is broken up, so it reads as loose doodle
+   lines drifting behind the calendar rather than as wallpaper.
+   It is painted on a dedicated child layer of .main-grid-flex-wrapper (not a
+   ::before/::after) so it can coexist with the optional picture background,
+   which owns the .week-grid-container pseudo-elements — and so a single layer
+   can span BOTH the calendar grid and the timer column.
+   Neutral only — no accents, no colored borders.
+   ========================================================================== */
+
+.sleek-calendar-app.sleek-has-doodles .main-grid-flex-wrapper {
+	position: relative;
+}
+
+/* The timer column paints an opaque --background-primary over its own area,
+   which would hide the doodle. Drop those fills while doodles are on so the wash
+   reads through behind the timer tiles. The tiles themselves sit at z-index >= 10,
+   so they stay above the doodle. */
+.sleek-calendar-app.sleek-has-doodles .timer-zone,
+.sleek-calendar-app.sleek-has-doodles .timer-column-root {
+	background-color: transparent !important;
+}
+
+/* Hidden entirely unless the feature is switched on. */
+.sleek-doodle-layer {
+	display: none;
+}
+
+.sleek-calendar-app.sleek-has-doodles .sleek-doodle-layer {
+	display: block;
+	position: absolute;
+	/* Same footprint as the picture background: below the 82px day header, right
+	   of the 50px time gutter, running all the way to the right edge — so it covers
+	   the calendar grid AND, when shown, the timer column. Because it is a
+	   non-scrolling layer it stays put while events scroll over it. */
+	top: 82px;
+	left: 50px;
+	right: 0;
+	bottom: 0;
+	z-index: 0;
+	pointer-events: none;
+	background-color: var(--text-normal);
+	opacity: var(--sleek-doodle-opacity, 0.06);
+	-webkit-mask-image: var(--sleek-doodle-image), var(--sleek-doodle-image);
+	mask-image: var(--sleek-doodle-image), var(--sleek-doodle-image);
+	-webkit-mask-repeat: repeat, repeat;
+	mask-repeat: repeat, repeat;
+	-webkit-mask-size: var(--sleek-doodle-size, 2400px), calc(var(--sleek-doodle-size, 2400px) * 0.62);
+	mask-size: var(--sleek-doodle-size, 2400px), calc(var(--sleek-doodle-size, 2400px) * 0.62);
+	-webkit-mask-position: 0 0, 520px 340px;
+	mask-position: 0 0, 520px 340px;
+	-webkit-mask-mode: alpha, alpha;
+	mask-mode: alpha, alpha;
+}
+
+/* Settings: live doodle swatch. Shows the real mask at the real colour, with a
+   small opacity floor so a 6% wash is still legible inside the swatch. */
+.sleek-doodle-preview {
+	position: relative;
+	height: 120px;
+	margin-bottom: 14px;
+	border-radius: 8px;
+	border: 1px solid var(--background-modifier-border);
+	background-color: var(--background-primary);
+	overflow: hidden;
+}
+
+.sleek-doodle-preview-inner {
+	position: absolute;
+	inset: 0;
+	background-color: var(--text-normal);
+	transition: opacity 0.15s ease;
+}
+
+/* ==========================================================================
+   "Simple shapes (animated)" doodle style.
+   The other styles are static SVG alpha masks. This one is rendered as a layer
+   of real DOM shapes (ShapesBackdrop.tsx) so they can drift — animations inside
+   a CSS mask-image never run. When this style is active the static mask layer is
+   hidden and this layer takes its place, sharing the exact same footprint (below
+   the 82px header, right of the 50px gutter, spanning calendar + timer column).
+   Each shape holds perfectly still for most of a long cycle and only eases a few
+   pixels away and back once, so at any moment only a couple of shapes are moving
+   — a very, very subtle animation, and neutral-only (no accents, no borders).
+   ========================================================================== */
+
+.sleek-shapes-layer {
+	display: none;
+}
+
+.sleek-calendar-app.sleek-has-shapes .sleek-shapes-layer {
+	display: block;
+	position: absolute;
+	top: 82px;
+	left: 50px;
+	right: 0;
+	bottom: 0;
+	z-index: 0;
+	pointer-events: none;
+	overflow: hidden;
+	color: var(--text-normal);
+	opacity: var(--sleek-doodle-opacity, 0.06);
+	/* The spin set by the "Shape rotation" setting is an inline transform; the
+	   origin is pinned to the centre so the field pivots in place. */
+	transform-origin: center center;
+	/* Only opacity changes on this element (the reaction itself is applied to the
+	   shapes), so the lift below can ease in and out. */
+	transition: opacity 300ms ease;
+}
+
+/* While the field is actively stirred — a scroll with real energy in it — lift it a
+   hair so the extra motion reads. Kept deliberately faint: the movement, not the
+   contrast, is what should be noticed. Neutral only, the same `--text-normal` ink. */
+.sleek-calendar-app.sleek-has-shapes .sleek-shapes-layer.is-scrolling {
+	opacity: calc(var(--sleek-doodle-opacity, 0.06) * 1.15);
+}
+
+/* Dragging a tile is hands-on, so the field is allowed a little more presence than
+   a scroll — still the same neutral ink, just a touch more of it. */
+.sleek-calendar-app.sleek-has-shapes .sleek-shapes-layer.is-dragging {
+	opacity: calc(var(--sleek-doodle-opacity, 0.06) * 1.3);
+}
+
+/* The animated style replaces the static mask entirely. */
+.sleek-calendar-app.sleek-has-shapes .sleek-doodle-layer {
+	display: none;
+}
+
+.sleek-shape {
+	position: absolute;
+	display: block;
+	animation-timing-function: ease-in-out;
+	animation-iteration-count: infinite;
+	will-change: transform, opacity;
+	/* Handed a brand-new slot when the visible day changes; easing left/top lets
+	   the field rearrange as one calm glide. The per-shape duration/delay are set
+	   inline (derived from each shape's own tempo) so it arrives as a slow ripple
+	   rather than a single synchronised jump. */
+	transition-property: left, top;
+	transition-timing-function: cubic-bezier(0.4, 0.05, 0.2, 1);
+	transition-duration: 2.4s;
+	transition-delay: 0s;
+}
+
+.sleek-shape svg {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+
+/* The idle keyframes animate `.sleek-shape`, so the scroll/drag reaction is
+   written to this inner wrapper instead — the two never fight over `transform`. */
+.sleek-shape-react {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+
+/* The field's one live inhabitant: a simplified fish that cruises the whole layer
+   at a slow, even pace, steering around the other shapes instead of through them.
+   Its course is written to `transform` from the backdrop's rAF loop, so the
+   off-layer default below is only what shows before that loop places it on the
+   first frame (and what a script-less render would fall back to). */
+.sleek-fish {
+	position: absolute;
+	left: 0;
+	top: 0;
+	display: block;
+	will-change: transform;
+	transform: translate3d(-300px, -300px, 0);
+}
+
+.sleek-fish svg {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+
+/* Keep every outline the same hairline weight no matter the shape's size. */
+.sleek-shapes-layer svg * {
+	vector-effect: non-scaling-stroke;
+}
+
+.sleek-shape--drift {
+	animation-name: sleekShapeDrift;
+}
+
+.sleek-shape--sway {
+	animation-name: sleekShapeSway;
+}
+
+.sleek-shape--breathe {
+	animation-name: sleekShapeBreathe;
+}
+
+.sleek-shape--grow {
+	animation-name: sleekShapeGrow;
+}
+
+/* Still, still, still... then a single gentle drift — and a soft swell — and
+   back. The tiny scale means the shapes that move also breathe a little. */
+@keyframes sleekShapeDrift {
+
+	0%,
+	74% {
+		transform: translate3d(0, 0, 0) scale(1);
+	}
+
+	84% {
+		transform: translate3d(13px, -9px, 0) scale(1.09);
+	}
+
+	93% {
+		transform: translate3d(-7px, 6px, 0) scale(0.98);
+	}
+
+	100% {
+		transform: translate3d(0, 0, 0) scale(1);
+	}
+}
+
+@keyframes sleekShapeSway {
+
+	0%,
+	74% {
+		transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+	}
+
+	85% {
+		transform: translate3d(-10px, -7px, 0) rotate(7deg) scale(1.07);
+	}
+
+	93% {
+		transform: translate3d(7px, 8px, 0) rotate(-5deg) scale(0.98);
+	}
+
+	100% {
+		transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+	}
+}
+
+@keyframes sleekShapeBreathe {
+
+	0%,
+	72% {
+		transform: scale(1);
+		opacity: 1;
+	}
+
+	86% {
+		transform: scale(1.16);
+		opacity: 0.5;
+	}
+
+	100% {
+		transform: scale(1);
+		opacity: 1;
+	}
+}
+
+/* A shape that mostly just swells in place, then eases back to size. */
+@keyframes sleekShapeGrow {
+
+	0%,
+	70% {
+		transform: scale(1);
+	}
+
+	85% {
+		transform: scale(1.2);
+	}
+
+	94% {
+		transform: scale(0.97);
+	}
+
+	100% {
+		transform: scale(1);
+	}
+}
+
+/* Respect users who ask the system to avoid motion. */
+@media (prefers-reduced-motion: reduce) {
+	.sleek-shape {
+		animation: none;
+		/* No glide either: the field just snaps to its new slots. */
+		transition: none;
+	}
+}
+
+/* ==========================================================================
+   DUPLICATE DROP CALENDAR
+   Cmd/Ctrl-dragging a tile duplicates it. While that drag is in flight a
+   one-month calendar pops out over the grid so the copy can be dropped straight
+   onto another day — or the panel can be ignored entirely and the tile dropped
+   on the grid as usual. Styled like the rest of the app: neutral surfaces, one
+   neutral hairline border, no accents, no coloured borders anywhere.
+   ========================================================================== */
+
+.sleek-dup-cal {
+	position: absolute;
+	/* JS places the panel beside the tile being duplicated; these are only the
+	   fallback coordinates for the very first paint. It stays above the tiles
+	   (2–20) and under the tile being dragged (25), and never climbs over the
+	   day headers. */
+	top: 88px;
+	left: 20px;
+	right: auto;
+	z-index: 22;
+	width: 320px;
+	max-width: calc(100% - 24px);
+	padding: 14px;
+	background: var(--background-secondary, var(--background-primary));
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 14px;
+	box-shadow: 0 18px 44px rgba(0, 0, 0, 0.38);
+	color: var(--text-normal);
+	user-select: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.sleek-dup-cal {
+		animation: sleekDupCalIn 170ms ease-out;
+	}
+}
+
+@keyframes sleekDupCalIn {
+	from {
+		opacity: 0;
+		transform: translateY(-6px) scale(0.97);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+
+.sleek-dup-cal-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 8px;
+}
+
+.sleek-dup-cal-title {
+	font-size: 14px;
+	font-weight: 600;
+	letter-spacing: 0.01em;
+}
+
+.sleek-dup-cal-nav {
+	display: flex;
+	gap: 4px;
+}
+
+.sleek-dup-cal-navbtn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	padding: 0;
+	font-size: 15px;
+	line-height: 1;
+	color: var(--text-muted);
+	background: transparent;
+	border: none;
+	border-radius: 7px;
+	box-shadow: none;
+	cursor: pointer;
+}
+
+.sleek-dup-cal-navbtn:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.sleek-dup-cal-week,
+.sleek-dup-cal-grid {
+	display: grid;
+	grid-template-columns: repeat(7, 1fr);
+}
+
+.sleek-dup-cal-week {
+	margin-bottom: 2px;
+}
+
+.sleek-dup-cal-weekday {
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--text-faint);
+	text-align: center;
+}
+
+.sleek-dup-cal-grid {
+	gap: 4px;
+}
+
+.sleek-dup-cal-day {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	position: relative;
+	aspect-ratio: 1 / 1;
+	font-size: 13.5px;
+	border-radius: 8px;
+	color: var(--text-normal);
+	transition: background-color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
+}
+
+/* Days spilling in from the neighbouring month: still present (they are perfectly
+   valid drop targets) but dimmed, so the month itself still reads at a glance. */
+.sleek-dup-cal-day.is-outside {
+	color: var(--text-faint);
+}
+
+.sleek-dup-cal-day.is-today {
+	box-shadow: inset 0 0 0 1px var(--background-modifier-border);
+}
+
+/* The day currently under the dragged copy. It is deliberately unmistakable — a
+   neutral hover wash, a soft neutral inset ring and a gentle breathing scale —
+   but still colourless, with no border of any kind. */
+.sleek-dup-cal-day.is-drop-target {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+	font-weight: 700;
+	box-shadow: inset 0 0 0 1.5px var(--background-modifier-border-hover, var(--background-modifier-border));
+	transform: scale(1.06);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.sleek-dup-cal-day.is-drop-target {
+		animation: sleekDupCalTarget 1.25s ease-in-out infinite;
+	}
+}
+
+@keyframes sleekDupCalTarget {
+
+	0%,
+	100% {
+		transform: scale(1.04);
+		box-shadow: inset 0 0 0 1.5px var(--background-modifier-border-hover, var(--background-modifier-border));
+	}
+
+	50% {
+		transform: scale(1.12);
+		box-shadow: inset 0 0 0 2px var(--background-modifier-border-hover, var(--background-modifier-border));
+	}
+}
+
+.sleek-dup-cal-foot {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-height: 30px;
+	margin-top: 9px;
+	padding-top: 8px;
+	border-top: 1px solid var(--background-modifier-border);
+	font-size: 11px;
+	color: var(--text-muted);
+}
+
+.sleek-dup-cal-foot-target {
+	color: var(--text-normal);
+	font-weight: 600;
+}
+
+/* While a valid day is targeted the footer breathes very gently, mirroring the
+   highlighted cell so the panel as a whole reads as "live". */
+@media (prefers-reduced-motion: no-preference) {
+	.sleek-dup-cal-foot.is-targeting {
+		animation: sleekDupCalFoot 1.25s ease-in-out infinite;
+	}
+}
+
+@keyframes sleekDupCalFoot {
+
+	0%,
+	100% {
+		opacity: 0.72;
+	}
+
+	50% {
+		opacity: 1;
+	}
+}
+
+.sleek-dup-cal-hint {
+	line-height: 1.35;
+}
+
+/* ==========================================================================
+   TIMER COLUMN CLOCK
+   While a timer is running, a short neutral arc chases slowly around the clock
+   in the timer column header. The arc is only rendered at all when something is
+   counting down, so a still clock is a truthful clock. Neutral: it inherits
+   `currentColor` from the header, so it is exactly the same ink as the face —
+   just a little fainter and a little thinner.
+   ========================================================================== */
+
+.timer-chase-arc {
+	fill: none;
+	/* An inline accent stroke is applied by MainGrid so the arc stays coloured even
+	   when the plugin-level accent is switched off; `currentColor` is only the
+	   fallback for a plain render. */
+	stroke: currentColor;
+	stroke-width: 1.5;
+	stroke-linecap: round;
+	/* The circle carries pathLength="100", so these read directly as percent of
+	   the circumference: a short 13% arc with an 87% gap. */
+	stroke-dasharray: 13 87;
+	opacity: 0.72;
+	transform-box: fill-box;
+	transform-origin: center;
+	animation: sleekTimerChase 9s linear infinite;
+}
+
+@keyframes sleekTimerChase {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.timer-chase-arc {
+		animation: none;
+	}
+}
+
+/* ================= In-calendar settings menu ================= */
+/* Opened from the gear at the top-right of the mini calendar. It reuses the same
+   dark, translucent "sleek-menu" surface as the tile right-click menu and the
+   profile popovers so every menu in the app reads as one family: same radius,
+   shadow and hover wash. Only the internal rows are laid out here.
+   Strictly neutral: no coloured borders, no rings, no purple accent — the only
+   colour is the user's own accent (via --sleek-accent), set on the panel. */
+
+.sleek-settings-menu {
+	padding: 0;
+	gap: 0;
+	overflow: hidden;
+	/* The panel is right-anchored under the gear, so it should grow from its
+	   top-right corner rather than the default top-left. */
+	transform-origin: top right;
+}
+
+.sleek-settings-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 13px 14px 11px 16px;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	flex-shrink: 0;
+}
+
+.sleek-settings-title {
+	font-size: 13px;
+	font-weight: 600;
+	letter-spacing: 0.01em;
+	color: var(--text-normal, #f1f5f9);
+}
+
+.sleek-settings-close {
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	border: none;
+	border-radius: 6px;
+	background: transparent;
+	box-shadow: none !important;
+	outline: none;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	box-sizing: border-box;
+	color: rgba(255, 255, 255, 0.5);
+	transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+.sleek-settings-close:hover,
+.sleek-settings-close:focus-visible {
+	background-color: rgba(255, 255, 255, 0.1);
+	color: var(--text-normal, #ffffff);
+}
+
+.sleek-settings-scroll {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+	overflow-x: hidden;
+	padding: 6px 8px 12px 8px;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+/* ---- Sections ---- */
+.sleek-settings-section {
+	padding: 4px 0;
+}
+
+.sleek-settings-section+.sleek-settings-section {
+	border-top: 1px solid rgba(255, 255, 255, 0.07);
+	margin-top: 6px;
+	padding-top: 10px;
+}
+
+.sleek-settings-section-title {
+	font-size: 10.5px;
+	font-weight: 600;
+	letter-spacing: 0.09em;
+	text-transform: uppercase;
+	color: rgba(255, 255, 255, 0.42);
+	padding: 4px 8px 7px 8px;
+}
+
+.sleek-settings-section-body {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+}
+
+/* ---- Rows ---- */
+.sleek-settings-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 7px 8px;
+	border-radius: 8px;
+	transition: background-color 0.1s ease;
+}
+
+.sleek-settings-row:hover {
+	background-color: rgba(255, 255, 255, 0.05);
+}
+
+.sleek-settings-row-text {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.sleek-settings-row-label {
+	font-size: 13px;
+	color: var(--text-normal, #e8ebf0);
+	line-height: 1.25;
+}
+
+.sleek-settings-row-desc {
+	font-size: 11px;
+	color: rgba(255, 255, 255, 0.45);
+	line-height: 1.35;
+}
+
+.sleek-settings-row-control {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-shrink: 0;
+}
+
+/* ---- Custom switch (neutral — never Obsidian's purple toggle) ---- */
+.sleek-settings-toggle {
+	position: relative;
+	width: 34px;
+	height: 20px;
+	border-radius: 999px;
+	border: none;
+	padding: 0;
+	box-sizing: border-box;
+	cursor: pointer;
+	background: rgba(255, 255, 255, 0.16);
+	box-shadow: none !important;
+	outline: none;
+	transition: background-color 0.15s ease;
+	flex-shrink: 0;
+}
+
+.sleek-settings-toggle:hover {
+	background: rgba(255, 255, 255, 0.22);
+}
+
+.sleek-settings-toggle.is-on {
+	background: var(--sleek-accent, rgba(255, 255, 255, 0.5));
+}
+
+.sleek-settings-toggle:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+.sleek-settings-toggle-thumb {
+	position: absolute;
+	top: 3px;
+	left: 3px;
+	width: 14px;
+	height: 14px;
+	border-radius: 50%;
+	background: #ffffff;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+	transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.sleek-settings-toggle.is-on .sleek-settings-toggle-thumb {
+	transform: translateX(14px);
+}
+
+/* ---- Accent colour dropdown (compact — keeps the panel short) ---- */
+.sleek-settings-colors {
+	position: relative;
+}
+
+.sleek-settings-colors-btn {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	height: 28px;
+	padding: 0 8px;
+	box-sizing: border-box;
+	font-size: 12.5px;
+	font-family: inherit;
+	color: var(--text-normal, #e8ebf0);
+	background: rgba(255, 255, 255, 0.06);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 7px;
+	cursor: pointer;
+	outline: none;
+	box-shadow: none !important;
+	transition: background-color 0.12s ease;
+}
+
+.sleek-settings-colors-btn:hover:not(:disabled) {
+	background: rgba(255, 255, 255, 0.1);
+}
+
+.sleek-settings-colors-btn:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+.sleek-settings-colors-dot {
+	width: 14px;
+	height: 14px;
+	border-radius: 50% !important;
+	clip-path: circle(50%);
+	flex-shrink: 0;
+	box-sizing: border-box;
+}
+
+.sleek-settings-colors-label {
+	text-transform: capitalize;
+	white-space: nowrap;
+}
+
+.sleek-settings-colors-chevron {
+	opacity: 0.55;
+	flex-shrink: 0;
+}
+
+.sleek-settings-colors-menu {
+	position: absolute;
+	top: calc(100% + 6px);
+	right: 0;
+	z-index: 20;
+	width: 178px;
+	max-height: 168px;
+	overflow-y: auto;
+	overflow-x: hidden;
+	display: grid;
+	grid-template-columns: repeat(5, 1fr);
+	justify-items: center;
+	align-items: center;
+	gap: 7px;
+	padding: 10px;
+	box-sizing: border-box;
+	background: rgba(28, 29, 32, 0.98);
+	backdrop-filter: blur(20px);
+	-webkit-backdrop-filter: blur(20px);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 10px;
+	box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+	animation: eventContextMenuFadeIn 0.12s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+	transform-origin: top right;
+}
+
+.sleek-settings-swatch {
+	width: 20px;
+	height: 20px;
+	border: none;
+	border-radius: 50% !important;
+	clip-path: circle(50%);
+	padding: 0;
+	box-sizing: border-box;
+	cursor: pointer;
+	outline: none;
+	box-shadow: none !important;
+	transition: transform 0.12s ease;
+}
+
+.sleek-settings-swatch:hover {
+	transform: scale(1.15);
+}
+
+/* Selection is a subtle size bump only — matching the profile swatches.
+   Never a border, ring or glow. */
+.sleek-settings-swatch.is-selected {
+	transform: scale(1.2);
+}
+
+/* ---- Text field (background image) ---- */
+.sleek-settings-field {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	padding: 7px 8px 9px 8px;
+}
+
+.sleek-settings-input-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-top: 5px;
+}
+
+.sleek-settings-input {
+	flex: 1;
+	min-width: 0;
+	height: 28px;
+	padding: 0 9px;
+	box-sizing: border-box;
+	font-size: 12.5px;
+	font-family: inherit;
+	color: var(--text-normal, #e8ebf0);
+	background: rgba(255, 255, 255, 0.06);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 7px;
+	outline: none !important;
+	box-shadow: none !important;
+	user-select: text;
+	transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.sleek-settings-input::placeholder {
+	color: rgba(255, 255, 255, 0.3);
+}
+
+.sleek-settings-input:focus {
+	border-color: rgba(255, 255, 255, 0.24);
+	background: rgba(255, 255, 255, 0.09);
+}
+
+.sleek-settings-btn {
+	height: 28px;
+	padding: 0 11px;
+	font-size: 12px;
+	font-family: inherit;
+	color: var(--text-normal, #e8ebf0);
+	background: rgba(255, 255, 255, 0.08);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 7px;
+	cursor: pointer;
+	outline: none;
+	box-shadow: none !important;
+	white-space: nowrap;
+	transition: background-color 0.12s ease;
+}
+
+.sleek-settings-btn:hover {
+	background: rgba(255, 255, 255, 0.14);
+}
+
+.sleek-settings-icon-btn {
+	width: 28px;
+	height: 28px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	color: rgba(255, 255, 255, 0.55);
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: 7px;
+	cursor: pointer;
+	outline: none;
+	box-shadow: none !important;
+	transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.sleek-settings-icon-btn:hover {
+	background: rgba(255, 255, 255, 0.1);
+	color: var(--text-normal, #ffffff);
+}
+
+/* ---- Slider ---- */
+.sleek-settings-slider {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.sleek-settings-slider input[type="range"] {
+	-webkit-appearance: none;
+	appearance: none;
+	width: 108px;
+	height: 4px;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.16);
+	outline: none;
+	box-shadow: none !important;
+	cursor: pointer;
+}
+
+.sleek-settings-slider input[type="range"]::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	appearance: none;
+	width: 13px;
+	height: 13px;
+	border-radius: 50%;
+	background: #ffffff;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.sleek-settings-slider input[type="range"]::-moz-range-track {
+	height: 4px;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.16);
+}
+
+.sleek-settings-slider input[type="range"]::-moz-range-thumb {
+	width: 13px;
+	height: 13px;
+	border: none;
+	border-radius: 50%;
+	background: #ffffff;
+}
+
+.sleek-settings-slider-value {
+	font-size: 11.5px;
+	color: rgba(255, 255, 255, 0.6);
+	min-width: 34px;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+/* ---- Dropdown ---- */
+.sleek-settings-select {
+	max-width: 150px;
+	height: 28px;
+	padding: 0 6px;
+	box-sizing: border-box;
+	font-size: 12.5px;
+	font-family: inherit;
+	color: var(--text-normal, #e8ebf0);
+	background: rgba(255, 255, 255, 0.06);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 7px;
+	outline: none !important;
+	box-shadow: none !important;
+	cursor: pointer;
+	transition: background-color 0.12s ease;
+}
+
+.sleek-settings-select:hover {
+	background: rgba(255, 255, 255, 0.1);
+}
+
+.sleek-settings-select option {
+	background: #1c1d20;
+	color: #e8ebf0;
+}
+
+/* ---- Visible calendars ---- */
+.sleek-settings-calendars {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	max-height: 208px;
+	overflow-y: auto;
+}
+
+.sleek-settings-calendar {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	padding: 6px 8px;
+	border-radius: 8px;
+	cursor: pointer;
+	transition: background-color 0.1s ease;
+}
+
+.sleek-settings-calendar:hover {
+	background-color: rgba(255, 255, 255, 0.05);
+}
+
+.sleek-settings-calendar input[type="checkbox"] {
+	width: 15px;
+	height: 15px;
+	margin: 0;
+	accent-color: var(--sleek-accent, #ffffff);
+	cursor: pointer;
+	flex-shrink: 0;
+}
+
+.sleek-settings-calendar-dot {
+	width: 11px;
+	height: 11px;
+	border-radius: 3px;
+	flex-shrink: 0;
+	box-sizing: border-box;
+}
+
+.sleek-settings-calendar-name {
+	font-size: 12.5px;
+	color: var(--text-normal, #e8ebf0);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.sleek-settings-note {
+	font-size: 11.5px;
+	line-height: 1.45;
+	color: rgba(255, 255, 255, 0.45);
+	padding: 5px 8px 8px 8px;
+}
+
+.sleek-settings-note.is-error {
+	color: #ff8f8f;
+}

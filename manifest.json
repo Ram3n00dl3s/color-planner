@@ -1,0 +1,10 @@
+{
+	"id": "sleek-google-calendar",
+	"name": "Color Planner",
+	"version": "1.3.24",
+	"minAppVersion": "1.4.0",
+	"description": "A beautiful, interactive calendar that connects to Google Calendar, with drag-and-drop events, timers, and daily note to-dos.",
+	"author": "Roman Alaivi",
+	"authorUrl": "https://github.com/Ram3n00dl3s",
+	"isDesktopOnly": true
+}

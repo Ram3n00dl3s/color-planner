@@ -1,0 +1,27 @@
+{
+	"compilerOptions": {
+		"inlineSourceMap": true,
+		"inlineSources": true,
+		"module": "ESNext",
+		"target": "ES6",
+		"allowJs": true,
+		"noImplicitAny": true,
+		"moduleResolution": "bundler",
+		"importHelpers": true,
+		"isolatedModules": true,
+		"strictNullChecks": true,
+		"types": [
+			"node"
+		],
+		"jsx": "react",
+		"skipLibCheck": true,
+		"lib": [
+			"DOM",
+			"ES2020"
+		]
+	},
+	"include": [
+		"**/*.ts",
+		"**/*.tsx"
+	]
+}
