@@ -43,6 +43,10 @@ const ALL_PALETTE_COLORS = [
 const profileHex = (profile?: CalendarProfile | null): string =>
 	resolveAccentHex(profile?.color) || DEFAULT_ACCENT_HEX;
 
+/** Does a swatch name describe the colour a tile is already wearing? */
+const isCurrentSwatch = (name: string, colorTheme?: string): boolean =>
+	colorTheme === name || colorTheme === `pastel-${name}` || (colorTheme || '').includes(name);
+
 // Helper component for Draggable Event Block
 const EventBlock = ({
 	event,
@@ -470,6 +474,24 @@ const EventBlock = ({
 		};
 	}, [event.description, event.linkedNotes, event.todos]);
 
+	// A calendar profile's colour is what identifies it on the grid, so those swatches
+	// are withheld from the tile's own picker: a tile wears one of those colours by
+	// attaching the profile, not by picking the swatch here. A tile that already wears
+	// a claimed colour keeps its swatch on show, so the row still reflects what the
+	// tile is actually set to instead of reading as though nothing were selected.
+	const claimedColors = useMemo(
+		() => new Set(calendarProfiles.map(p => p.color).filter(Boolean) as string[]),
+		[calendarProfiles]
+	);
+	const recentColors = useMemo(
+		() => RECENT_COLORS.filter(c => !claimedColors.has(c) || isCurrentSwatch(c, event.colorTheme)),
+		[claimedColors, event.colorTheme]
+	);
+	const paletteColors = useMemo(
+		() => ALL_PALETTE_COLORS.filter(c => !claimedColors.has(c) || event.colorTheme === c),
+		[claimedColors, event.colorTheme]
+	);
+
 	const allList = cleanDescription && tileItems.length > 0
 		? [{ title: cleanDescription, completed: false }, ...tileItems]
 		: tileItems;
@@ -576,10 +598,11 @@ const EventBlock = ({
 						gap: '2px'
 					}}
 				>
-					{/* Recent Colors Row with Swatch Selector as the last option */}
+					{/* Recent Colors Row with Swatch Selector as the last option. Lives are the
+					    colours no profile has claimed — see `claimedColors` above. */}
 					<div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px', padding: '4px 6px 8px 6px' }}>
-						{RECENT_COLORS.map(c => {
-							const isSelected = event.colorTheme === c || event.colorTheme === `pastel-${c}` || (event.colorTheme || '').includes(c);
+						{recentColors.map(c => {
+							const isSelected = isCurrentSwatch(c, event.colorTheme);
 							return (
 								<div
 									key={c}
@@ -663,7 +686,7 @@ const EventBlock = ({
 									strokeLinecap="round"
 									strokeLinejoin="round"
 									style={{
-										color: (showColorPicker || !RECENT_COLORS.includes(event.colorTheme || '')) ? 'var(--text-normal, #ffffff)' : 'var(--text-muted, rgba(255, 255, 255, 0.6))',
+										color: (showColorPicker || !recentColors.includes(event.colorTheme || '')) ? 'var(--text-normal, #ffffff)' : 'var(--text-muted, rgba(255, 255, 255, 0.6))',
 										pointerEvents: 'none'
 									}}
 								>
@@ -700,7 +723,7 @@ const EventBlock = ({
 										boxSizing: 'border-box'
 									}}
 								>
-									{ALL_PALETTE_COLORS.map(c => {
+									{paletteColors.map(c => {
 										const isSelected = event.colorTheme === c;
 										return (
 											<div
