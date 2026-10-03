@@ -1041,9 +1041,12 @@ export const RightPane = ({ event, onClose, onUpdate, onDateSelect, onDelete, pl
 
 			<div className="pane-content">
 				<div className="pane-section title-section" style={{ position: 'relative' }}>
-					{/* The pane's own heading, set exactly as "To Do" and the rows below are. */}
-					<div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', padding: '0 4px' }}>
-						<span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-normal)', letterSpacing: '0.2px' }}>Event</span>
+					{/* The pane's own heading, set exactly as "To Do" and the rows below are. Its
+					    height is pinned at 20px (plus an 8px gap) so the title box beneath it keeps
+					    the very offset it had before this heading existed — `.title-section`
+					    absorbs those 28px, which is why the alignment below is untouched. */}
+					<div style={{ display: 'flex', alignItems: 'center', height: '20px', marginBottom: '8px', padding: '0 4px' }}>
+						<span style={{ fontSize: '14px', fontWeight: 600, lineHeight: '20px', color: 'var(--text-normal)', letterSpacing: '0.2px' }}>Event</span>
 					</div>
 					<textarea
 						ref={titleInputRef}
