@@ -1017,10 +1017,12 @@
 	   82px, so the columns begin roughly 146px down. The pane's own bar is about 55px
 	   tall — the delete button and its 16px padding — so the title carries the
 	   difference as top padding, and everything below it in the pane shifts with it.
-	   The "Event" heading above the title takes the first 28px of that offset now — its
+	   The "Title" heading above the title takes the first 28px of that offset now — its
 	   pinned 20px line plus an 8px gap — so the title box itself still starts exactly
-	   82px down and the alignment is untouched. Nudge these two numbers together if the
-	   two edges ever drift apart. */
+	   82px down and the alignment is untouched. The heading itself hangs 8px outboard of
+	   that 24px line (a -8px margin, set inline) so it overhangs the title text by the
+	   same amount "To Do" overhangs "Add a to-do...". Nudge these two numbers together
+	   if the two edges ever drift apart. */
 	padding-top: 54px;
 	/* Tightened so the profile row below the title hugs the section divider. */
 	padding-bottom: 10px;

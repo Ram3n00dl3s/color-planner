@@ -1041,12 +1041,18 @@ export const RightPane = ({ event, onClose, onUpdate, onDateSelect, onDelete, pl
 
 			<div className="pane-content">
 				<div className="pane-section title-section" style={{ position: 'relative' }}>
-					{/* The pane's own heading, set exactly as "To Do" and the rows below are. Its
-					    height is pinned at 20px (plus an 8px gap) so the title box beneath it keeps
-					    the very offset it had before this heading existed — `.title-section`
-					    absorbs those 28px, which is why the alignment below is untouched. */}
-					<div style={{ display: 'flex', alignItems: 'center', height: '20px', marginBottom: '8px', padding: '0 4px' }}>
-						<span style={{ fontSize: '14px', fontWeight: 600, lineHeight: '20px', color: 'var(--text-normal)', letterSpacing: '0.2px' }}>Event</span>
+					{/* The pane's heading, set in exactly the type of the "To Do" heading further
+					    down — the same 14px at 600 with the same 0.2px tracking — and pulled 8px
+					    outboard of the title text, which is the very overhang "To Do" keeps over its
+					    own "Add a to-do..." box: that heading sits on the section's 12px line while
+					    the box's text sits on the 20px one. The 8px comes off `.title-section`'s 24px
+					    content line, so this heading lands on 16px and the title itself — on 24px,
+					    flush with the clock/globe/pin icons below — never moves. Its height stays
+					    pinned at 20px (plus an 8px gap) so the title box beneath still starts exactly
+					    82px down; `.title-section` absorbs those 28px, which is why nothing below
+					    shifts with it. */}
+					<div style={{ display: 'flex', alignItems: 'center', height: '20px', marginBottom: '8px', marginLeft: '-8px' }}>
+						<span style={{ fontSize: '14px', fontWeight: 600, lineHeight: '20px', color: 'var(--text-normal)', letterSpacing: '0.2px' }}>Title</span>
 					</div>
 					<textarea
 						ref={titleInputRef}
