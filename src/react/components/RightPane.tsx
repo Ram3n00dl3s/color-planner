@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { Notice } from 'obsidian';
 import { CalendarEvent, CalendarProfile, CustomRepeat, EventTodo } from '../../types';
 import { format, differenceInMinutes, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns';
 import SleekCalendarPlugin from '../../main';
@@ -8,7 +9,38 @@ import { AUTO_TIME_ZONE, getNowInTimeZone, getTimeZoneDisplayLabel, getTimeZoneO
 import { eventOccursOnDay } from '../../utils/events';
 import { randomEventDotColor, accentColorForId, resolveAccentHex, DEFAULT_ACCENT_HEX, hexToRgba, ACCENT_CHIP_TINT_ALPHA } from '../../utils/colors';
 import { AddressSuggestion, buildGoogleMapsUrl, searchAddresses } from '../../utils/maps';
+import { buildPlannerNoteName, createPlannerNote, PLANNER_NOTES_FOLDER } from '../../utils/plannerNotes';
 import { CustomRepeatModal } from './CustomRepeatModal';
+import { NoteComposer } from './NoteComposer';
+
+/* The two note actions in the attachment section share one look: a quiet dashed chip
+   that only warms up on hover. Kept here rather than inline twice so the pair reads as
+   a set — the same border, the same muted ink, the same reveal. */
+const NOTE_ACTION_BTN_STYLE: React.CSSProperties = {
+	display: 'inline-flex',
+	alignItems: 'center',
+	gap: '6px',
+	padding: '4px 10px',
+	borderRadius: '5px',
+	border: '1px dashed var(--background-modifier-border)',
+	background: 'transparent',
+	color: 'var(--text-muted)',
+	fontSize: '12px',
+	cursor: 'pointer',
+	transition: 'all 0.15s ease'
+};
+
+const noteActionHoverIn = (e: React.MouseEvent<HTMLButtonElement>) => {
+	e.currentTarget.style.borderColor = 'var(--background-modifier-border-hover, var(--text-muted))';
+	e.currentTarget.style.color = 'var(--text-normal)';
+	e.currentTarget.style.background = 'var(--background-modifier-hover)';
+};
+
+const noteActionHoverOut = (e: React.MouseEvent<HTMLButtonElement>) => {
+	e.currentTarget.style.borderColor = 'var(--background-modifier-border)';
+	e.currentTarget.style.color = 'var(--text-muted)';
+	e.currentTarget.style.background = 'transparent';
+};
 
 interface RightPaneProps {
 	event: CalendarEvent | null;
@@ -180,6 +212,7 @@ export const RightPane = ({ event, onClose, onUpdate, onDateSelect, onDelete, pl
 	const [openDropdown, setOpenDropdown] = useState<'none' | 'start' | 'end' | 'date' | 'color' | 'timezone' | 'repeat' | 'reminders'>('none');
 	const [isAttachmentDragOver, setIsAttachmentDragOver] = useState(false);
 	const [showCustomRepeat, setShowCustomRepeat] = useState(false);
+	const [isComposingNote, setIsComposingNote] = useState(false);
 	const titleInputRef = useRef<HTMLTextAreaElement>(null);
 	const descTextareaRef = useRef<HTMLTextAreaElement>(null);
 	const currentEventIdRef = useRef<string | null>(null);
@@ -659,6 +692,23 @@ export const RightPane = ({ event, onClose, onUpdate, onDateSelect, onDelete, pl
 		onUpdate({ ...event, description, linkedNotes: updatedNotes, todos: eventTodos });
 	};
 
+	// --- Creating a note from the event -----------------------------------------
+	// The one place in the plugin that writes to the vault at all, and it only ever
+	// *creates*: a brand-new file in the plugin's own folder, named with the date and
+	// the event tile's title. No existing note is opened, edited or appended to, and the
+	// note text lives only in the popup until the moment the file is written.
+	const plannerNoteName = buildPlannerNoteName(new Date(), title || event?.title || 'Event');
+
+	const handleCreatePlannerNote = async (noteBody: string) => {
+		const file = await createPlannerNote(plugin?.app, { name: plannerNoteName, body: noteBody });
+		setIsComposingNote(false);
+		if (file) {
+			new Notice(`Note created: ${file.path}`);
+		} else {
+			new Notice('Could not create the note — check the vault folder.');
+		}
+	};
+
 	const handleAttachmentDrop = (e: React.DragEvent) => {
 		e.preventDefault();
 		e.stopPropagation();
@@ -950,6 +1000,16 @@ export const RightPane = ({ event, onClose, onUpdate, onDateSelect, onDelete, pl
 					accentColor={accentColor}
 					onCancel={() => setShowCustomRepeat(false)}
 					onDone={handleCustomRepeatDone}
+				/>,
+				document.body
+			)}
+			{isComposingNote && createPortal(
+				<NoteComposer
+					noteName={plannerNoteName}
+					folder={PLANNER_NOTES_FOLDER}
+					accentColor={accentColor}
+					onCancel={() => setIsComposingNote(false)}
+					onCreate={handleCreatePlannerNote}
 				/>,
 				document.body
 			)}
@@ -1591,37 +1651,29 @@ export const RightPane = ({ event, onClose, onUpdate, onDateSelect, onDelete, pl
 							)}
 						</div>
 					) : (
-						<button
-							type="button"
-							onClick={() => setIsLinkingNote(true)}
-							style={{
-								display: 'inline-flex',
-								alignItems: 'center',
-								gap: '6px',
-								marginBottom: linkedNotes.length > 0 ? '8px' : '0',
-								padding: '4px 10px',
-								borderRadius: '5px',
-								border: '1px dashed var(--background-modifier-border)',
-								background: 'transparent',
-								color: 'var(--text-muted)',
-								fontSize: '12px',
-								cursor: 'pointer',
-								transition: 'all 0.15s ease'
-							}}
-							onMouseEnter={(e) => {
-								e.currentTarget.style.borderColor = 'var(--background-modifier-border-hover, var(--text-muted))';
-								e.currentTarget.style.color = 'var(--text-normal)';
-								e.currentTarget.style.background = 'var(--background-modifier-hover)';
-							}}
-							onMouseLeave={(e) => {
-								e.currentTarget.style.borderColor = 'var(--background-modifier-border)';
-								e.currentTarget.style.color = 'var(--text-muted)';
-								e.currentTarget.style.background = 'transparent';
-							}}
-						>
-							<span style={{ fontSize: '13px', lineHeight: 1 }}>+</span>
-							<span>Link note (@)</span>
-						</button>
+						<div className="attachment-actions" style={{ marginBottom: linkedNotes.length > 0 ? '8px' : '0' }}>
+							<button
+								type="button"
+								onClick={() => setIsLinkingNote(true)}
+								style={NOTE_ACTION_BTN_STYLE}
+								onMouseEnter={noteActionHoverIn}
+								onMouseLeave={noteActionHoverOut}
+							>
+								<span style={{ fontSize: '13px', lineHeight: 1 }}>+</span>
+								<span>Link note (@)</span>
+							</button>
+							<button
+								type="button"
+								onClick={() => setIsComposingNote(true)}
+								title={`Write a new note into ${PLANNER_NOTES_FOLDER}`}
+								style={NOTE_ACTION_BTN_STYLE}
+								onMouseEnter={noteActionHoverIn}
+								onMouseLeave={noteActionHoverOut}
+							>
+								<span style={{ fontSize: '13px', lineHeight: 1 }}>+</span>
+								<span>Create note</span>
+							</button>
+						</div>
 					)}
 
 					{linkedNotes.length > 0 && (
