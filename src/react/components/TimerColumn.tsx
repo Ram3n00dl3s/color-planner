@@ -90,6 +90,15 @@ export const TimerColumn = ({
 
 	const [dynamicPxPerHour, setDynamicPxPerHour] = useState(pxPerHour);
 	const measuredRef = setNodeRef;
+	// The column's own root carries a local ref as well as the dnd-kit droppable one, so
+	// the wheel handler below can look outward for the calendar's scrollport. The two
+	// panes are siblings inside `.main-grid-flex-wrapper`, which is why the search walks
+	// up to that shared wrapper instead of to a scrollable ancestor.
+	const rootRef = useRef<HTMLDivElement | null>(null);
+	const attachRoot = React.useCallback((node: HTMLDivElement | null) => {
+		rootRef.current = node;
+		measuredRef(node);
+	}, [measuredRef]);
 	useEffect(() => {
 		const el = document.querySelector('.timer-column-root') as HTMLElement | null;
 		const updateHeight = () => {
@@ -159,6 +168,36 @@ export const TimerColumn = ({
 			return changed ? normalized : prev;
 		});
 	}, [setTimers]);
+
+	// Wheeling over the column's dead space scrolls the CALENDAR, not the column. Because
+	// the grid and this column are siblings, a wheel that lands on blank column would
+	// otherwise have nothing to scroll and simply die here. Only blank column is captured:
+	// a wheel that starts on a tile (or inside its menu) returns untouched, so the
+	// column's own overflow and every tile behaviour stay exactly as they were. Nothing
+	// here reads or writes a single timer — no position, no state, no reordering; the
+	// calendar's scrollport is moved by the same amount a wheel over the grid itself would
+	// have moved it.
+	useEffect(() => {
+		const el = rootRef.current;
+		if (!el) return;
+		const onWheel = (e: WheelEvent) => {
+			// Pinch-zoom (ctrl+wheel) and purely horizontal gestures are none of our
+			// business.
+			if (e.ctrlKey || !e.deltaY) return;
+			// Over a tile: leave it alone. The browser's native scroll then reaches the
+			// column's own scrollport, which is the existing behaviour for a full column.
+			if (e.target instanceof Element && e.target.closest('.timer-tile')) return;
+			const scroller = el.closest('.main-grid-flex-wrapper')?.querySelector('.week-grid') as HTMLElement | null;
+			if (!scroller) return;
+			e.preventDefault();
+			// `deltaMode` is pixels in practice, but keyboard and some mice report lines
+			// (1) or pages (2); normalise so the step always reads as a screen-like nudge.
+			const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? scroller.clientHeight : 1;
+			scroller.scrollTop += e.deltaY * unit;
+		};
+		el.addEventListener('wheel', onWheel, { passive: false });
+		return () => el.removeEventListener('wheel', onWheel);
+	}, []);
 
 	// Tick every minute to update active timers
 	useEffect(() => {
@@ -319,7 +358,7 @@ export const TimerColumn = ({
 	return (
 		<ErrorBoundary>
 			<div
-				ref={measuredRef}
+				ref={attachRoot}
 				className="timer-column-root"
 				style={{ flex: 1, minWidth: 0, height: '100%', width: '100%', position: 'relative', borderLeft: 'none', backgroundColor: 'var(--background-primary)', overflowY: fitsColumn ? 'hidden' : 'auto', scrollbarGutter: 'stable', display: 'flex', flexDirection: 'column', minHeight: 0 }}
 				onDragEnter={(e) => { e.preventDefault(); }}
