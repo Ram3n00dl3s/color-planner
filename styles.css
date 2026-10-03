@@ -535,6 +535,7 @@
 	background-color: var(--background-modifier-border);
 	margin-top: 6px;
 	flex-shrink: 0;
+	transition: opacity 0.12s ease;
 }
 
 .days-body {
@@ -725,6 +726,20 @@
 	margin-top: 1px;
 	color: rgba(0, 0, 0, 0.65);
 	transition: font-size 0.12s ease, font-weight 0.12s ease;
+}
+
+/* Corner affordances on event tiles: the neutral "note" icon (shown when an
+   event has a linked/created note) and the "map" icon (shown when an event has
+   a location). They stack in the bottom-right corner and never overlap. The
+   note icon inherits the tile's dark neutral ink — no coloured/purple accent
+   and no framed box. */
+.event-tile-icons {
+	pointer-events: none;
+	user-select: none;
+}
+
+.event-note-icon {
+	color: rgba(0, 0, 0, 0.5);
 }
 
 .event-tile-divider {
@@ -1341,8 +1356,13 @@
 	transform: translateX(14px);
 }
 
-/* Custom repeat modal */
-.repeat-modal-overlay {
+/* The dialog surface the calendar asks its questions on — the custom-repeat form first, and the
+   month view's copy confirmation with it. Sharing the rules is what keeps a confirmation in the
+   month looking like every other window the app opens: same overlay, same card, same title, same
+   footer and buttons. Neutral throughout; the primary button takes the accent the app is already
+   wearing and falls back to plain text colour when accents are switched off. */
+.repeat-modal-overlay,
+.month-copy-overlay {
 	position: fixed;
 	inset: 0;
 	z-index: 3000;
@@ -1352,7 +1372,8 @@
 	background: rgba(0, 0, 0, 0.5);
 }
 
-.repeat-modal {
+.repeat-modal,
+.month-copy-dialog {
 	width: 360px;
 	max-width: calc(100vw - 32px);
 	background: var(--background-secondary);
@@ -1366,7 +1387,8 @@
 	color: var(--text-normal);
 }
 
-.repeat-modal-title {
+.repeat-modal-title,
+.month-copy-title {
 	font-size: 16px;
 	font-weight: 600;
 }
@@ -1486,14 +1508,16 @@
 	font-size: 14px;
 }
 
-.repeat-modal-footer {
+.repeat-modal-footer,
+.month-copy-footer {
 	display: flex;
 	justify-content: flex-end;
 	gap: 10px;
 	margin-top: 6px;
 }
 
-.repeat-modal-btn {
+.repeat-modal-btn,
+.month-copy-btn {
 	padding: 8px 16px;
 	border-radius: 8px;
 	border: none;
@@ -1506,14 +1530,47 @@
 	transition: filter 0.15s ease;
 }
 
-.repeat-modal-btn:hover {
+.repeat-modal-btn:hover,
+.month-copy-btn:hover {
 	filter: brightness(1.15);
 }
 
-.repeat-modal-btn.is-primary {
+.repeat-modal-btn.is-primary,
+.month-copy-btn.is-primary {
 	background: var(--sleek-accent, var(--text-normal));
 	color: #0b0b0c;
 	font-weight: 600;
+}
+
+/* What the copy confirmation says: the two days side by side, joined by a quiet arrow, and a
+   line of plain explanation under them. The days are pills in the theme's own hover wash;
+   nothing here is coloured and no border is drawn. */
+.month-copy-body {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	font-size: 14px;
+	color: var(--text-normal);
+}
+
+.month-copy-day {
+	background: var(--background-modifier-hover);
+	border-radius: 8px;
+	padding: 6px 10px;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.month-copy-arrow {
+	color: var(--text-muted);
+	flex-shrink: 0;
+}
+
+.month-copy-note {
+	margin: 0;
+	font-size: 13px;
+	line-height: 1.45;
+	color: var(--text-muted);
 }
 
 /* The dialog's end date is chosen from a month panel of our own rather than the
@@ -1781,6 +1838,18 @@
 	box-shadow: none !important;
 }
 
+/* The description's placeholder borrows the to-do row's voice — the same 14px at the
+   same muted ink as "Add a to-do..." (and the title's "Add an event...") — so every
+   empty prompt in the pane reads as one quiet set instead of the browser's own dimmer
+   textarea placeholder. */
+.description-textarea::placeholder {
+	font-size: 14px;
+	font-weight: 400;
+	line-height: 1.45;
+	color: var(--text-faint, var(--text-muted));
+	opacity: 1;
+}
+
 input[type="text"].todo-add-input,
 .theme-dark input[type="text"].todo-add-input,
 .theme-light input[type="text"].todo-add-input,
@@ -2024,6 +2093,10 @@ input[type="text"].todo-add-input.has-value,
 .sleek-menu {
 	animation: eventContextMenuFadeIn 0.12s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 	transform-origin: top left;
+	/* The shell is always a dark surface (see the hard-coded background below), so pin
+	   its text to a bright tone. Obsidian's --text-normal flips to a dark colour in light
+	   mode, which turned every label in these menus into dark-on-dark and unreadable. */
+	color: #f4f6fa;
 	background: rgba(28, 29, 32, 0.95);
 	backdrop-filter: blur(20px);
 	-webkit-backdrop-filter: blur(20px);
@@ -2114,7 +2187,7 @@ input[type="text"].todo-add-input.has-value,
 
 .sleek-menu-more:hover,
 .sleek-menu-more.is-active {
-	color: var(--text-normal, #ffffff);
+	color: #ffffff;
 }
 
 /* The "more colours" droplet is inert until the colour row is armed. */
@@ -2174,7 +2247,7 @@ input[type="text"].todo-add-input.has-value,
 	background: transparent;
 	box-shadow: none !important;
 	cursor: pointer;
-	color: var(--text-normal, #e2e8f0);
+	color: #f4f6fa;
 	font-size: 14px;
 	font-family: inherit;
 	text-align: left;
@@ -2229,11 +2302,34 @@ input[type="text"].todo-add-input.has-value,
 	margin-top: 8px;
 }
 
-/* Read-only chips listing the profiles that already exist. */
+/* Section order inside the default pane's drop zone. The pane stacks its sections
+   as a flex column, so re-ordering is a pure presentation concern handled here:
+   To Do first (right under the mini calendar), then Attach Notes, then Calendar
+   Profiles, with the month-only Daily Note To-Do last. The DOM keeps its own
+   order, so nothing about the sections themselves changes. */
+.sidebar-drop-zone>.sidebar-section-todos {
+	order: 1;
+}
+
+.sidebar-drop-zone>.sidebar-section-notes {
+	order: 2;
+}
+
+.sidebar-drop-zone>.profile-creator-wrapper {
+	order: 3;
+}
+
+.sidebar-drop-zone>.sidebar-monthly-todos {
+	order: 4;
+}
+
+/* Clickable chips listing the profiles that already exist. Clicking one toggles
+   the visibility of that profile's event tiles — an on/off view filter, never a
+   change to the events themselves. */
 .sidebar-profile-chips {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 8px 10px;
+	gap: 4px 6px;
 	/* A touch more breathing room between the heading and the list. */
 	margin-top: 8px;
 	padding: 0 4px;
@@ -2242,17 +2338,66 @@ input[type="text"].todo-add-input.has-value,
 .sidebar-profile-chip {
 	display: inline-flex;
 	align-items: center;
-	gap: 6px;
-	font-size: 12.5px;
-	color: var(--text-muted);
+	gap: 7px;
+	/* Slightly larger than the old read-only label so the chips read as tappable. */
+	font-size: 14px;
+	font-weight: 500;
+	line-height: 1.2;
+	color: var(--text-normal);
 	white-space: nowrap;
+	/* Button reset — no surface, no border, no outline. `!important` because
+	   Obsidian's core/theme `button` styling otherwise paints its own grey box
+	   behind every chip. Never a coloured border. */
+	appearance: none;
+	background: transparent !important;
+	border: none !important;
+	box-shadow: none !important;
+	outline: none !important;
+	border-radius: 8px;
+	margin: 0;
+	padding: 5px 10px 5px 8px;
+	cursor: pointer;
+	font-family: inherit;
+	transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+/* No surface at rest, on hover, on focus or while pressed — the chip only ever
+	  warms its text so it still reads as interactive without a grey box. */
+.sidebar-profile-chip:hover,
+.sidebar-profile-chip:active,
+.sidebar-profile-chip:focus,
+.sidebar-profile-chip:focus-visible {
+	background: transparent !important;
+	outline: none !important;
+	box-shadow: none !important;
+}
+
+.sidebar-profile-chip:hover {
+	opacity: 0.85;
+}
+
+/* Switched off: this — and only this — is where a grey box appears, as a faint,
+	  barely-there neutral wash so the "off" state is legible without standing out. */
+.sidebar-profile-chip.is-hidden {
+	color: var(--text-faint);
+	background: rgba(127, 127, 127, 0.10) !important;
+}
+
+.sidebar-profile-chip.is-hidden:hover {
+	background: rgba(127, 127, 127, 0.15) !important;
+	opacity: 1;
+}
+
+.sidebar-profile-chip.is-hidden .sidebar-profile-chip-dot {
+	opacity: 0.35;
 }
 
 .sidebar-profile-chip-dot {
-	width: 10px;
-	height: 10px;
-	border-radius: 3px;
+	width: 12px;
+	height: 12px;
+	border-radius: 4px;
 	flex-shrink: 0;
+	transition: opacity 0.15s ease;
 }
 
 .profile-creator-heading {
@@ -2296,7 +2441,7 @@ input[type="text"].todo-add-input.has-value,
 .profile-creator-close:hover,
 .profile-creator-close:focus-visible {
 	background-color: rgba(255, 255, 255, 0.1);
-	color: var(--text-normal, #ffffff);
+	color: #ffffff;
 }
 
 .profile-creator-empty {
@@ -2357,7 +2502,7 @@ input[type="text"].todo-add-input.has-value,
 	padding: 2px 6px;
 	font-size: 14px;
 	font-family: inherit;
-	color: var(--text-normal, #e2e8f0);
+	color: #f4f6fa;
 	background: transparent;
 	border: none;
 	border-radius: 5px;
@@ -2375,7 +2520,7 @@ input[type="text"].todo-add-input.has-value,
 	font-size: 14px;
 	font-family: inherit;
 	line-height: 1.35;
-	color: var(--text-normal, #e2e8f0);
+	color: #f4f6fa;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -2386,7 +2531,7 @@ input[type="text"].todo-add-input.has-value,
 .profile-creator-row-note {
 	flex-shrink: 0;
 	font-size: 11.5px;
-	color: var(--text-faint);
+	color: rgba(255, 255, 255, 0.45);
 	padding-right: 2px;
 }
 
@@ -2426,7 +2571,7 @@ input[type="text"].todo-add-input.has-value,
 	padding: 7px 9px;
 	font-size: 13.5px;
 	font-family: inherit;
-	color: var(--text-normal, #e2e8f0);
+	color: #f4f6fa;
 	background: rgba(255, 255, 255, 0.07);
 	border: none;
 	border-radius: 6px;
@@ -2466,12 +2611,12 @@ input[type="text"].todo-add-input.has-value,
 
 .profile-creator-btn:hover {
 	background-color: rgba(255, 255, 255, 0.08);
-	color: var(--text-normal, #e2e8f0);
+	color: #f4f6fa;
 }
 
 .profile-creator-btn.is-primary {
 	font-weight: 600;
-	color: var(--text-normal, #e2e8f0);
+	color: #f4f6fa;
 	background-color: rgba(255, 255, 255, 0.14);
 }
 
@@ -3392,6 +3537,15 @@ input[type="text"].todo-add-input.has-value,
 	z-index: 1;
 }
 
+/* The column carrying the tile in flight is lifted clear of its siblings. Every day
+   column is its own stacking context, so the tile's own z-index cannot escape it and
+   a neighbouring column would paint straight over the tile the moment a drag
+   translated it across a column boundary. Kept below the drag indicator's own 40 so
+   the landing time still reads off the rule riding over the tile. */
+.days-body>.day-column.day-column--flight {
+	z-index: 30;
+}
+
 /* A tile that has just "begun" (a freshly created, duplicated, or dropped
    event) drops in with a short, springy bounce: it falls from a touch above,
    overshoots very slightly, and settles. Only `opacity`/`translate`/`scale`
@@ -3419,7 +3573,9 @@ input[type="text"].todo-add-input.has-value,
 	}
 
 	100% {
-		opacity: 1;
+		/* Same reasoning as the reveal below: settle on the tile's own resting
+		   opacity so a past event never snaps back down to its dimmed value. */
+		opacity: var(--sleek-tile-rest-opacity, 1);
 		translate: 0 0;
 		scale: 1;
 	}
@@ -3428,6 +3584,70 @@ input[type="text"].todo-add-input.has-value,
 .placeholder-event.tile-begun {
 	animation: sleekTileBegin 0.62s cubic-bezier(0.22, 1, 0.36, 1);
 	will-change: translate, scale, opacity;
+}
+
+/* The view-shape reveal — a gentle, unified entrance played on every tile at
+   once when the grid changes shape (month ↔ days, or the number of days in view).
+   It mirrors the soft drop-and-fade a day-header click uses, but keeps distance,
+   scale and opacity on a SINGLE animation and a SINGLE easing curve so nothing
+   ever reads as moving or fading at its own pace: the whole board eases in as one.
+   Deliberately un-staggered — a per-tile delay made nearby tiles start at
+   different moments, which read as a staccato ripple rather than a calm settle.
+   Only `translate`/`scale`/`opacity` move, so it never fights the drag layer
+   (which owns `transform`) or a running collapse. Neutral — no accent, no border. */
+@keyframes sleekTileReveal {
+	from {
+		translate: 0 -22px;
+		scale: 0.99;
+		opacity: 0;
+	}
+
+	to {
+		translate: 0 0;
+		scale: 1;
+		/* Fade to the tile's own resting opacity, not a flat 1. Past events dim to
+		   0.65 and all-day tiles sit at 0.85, so ending at 1 made them jump back
+		   down to their dimmed value the moment the animation handed control back.
+		   The variable is set inline per tile; any tile that does not set it (the
+		   timer tiles) simply settles at full opacity. */
+		opacity: var(--sleek-tile-rest-opacity, 1);
+	}
+}
+
+.placeholder-event.tile-reveal {
+	animation: sleekTileReveal 0.52s cubic-bezier(0.22, 0.61, 0.36, 1);
+	will-change: translate, scale, opacity;
+}
+
+/* A right-click acknowledges itself with the smallest possible motion: the tile
+   presses in a hair and eases straight back out, just before the context menu
+   appears. Like the "tile begun" bounce it moves only `scale`, so it never fights
+   the drag layer (which owns `transform`) or the column-collapse animation, and no
+   fill mode is used so the finished animation hands control straight back to the
+   inline styles. The class is added/removed from React for one shot — from MainGrid
+   on the event tiles, and from the timer column's own TimerBlock on its tiles, which
+   wear the same `placeholder-event` class and so share this exact rule.
+   Neutral — no accent, no border. */
+@keyframes sleekTileContextPulse {
+	0% {
+		scale: 1;
+	}
+
+	32% {
+		scale: 0.972;
+	}
+
+	68% {
+		scale: 1.008;
+	}
+
+	100% {
+		scale: 1;
+	}
+}
+
+.placeholder-event.context-pulse {
+	animation: sleekTileContextPulse 0.26s cubic-bezier(0.33, 1, 0.68, 1);
 }
 
 /* Clicking a day header collapses that whole column: its tiles drift up out of
@@ -3468,6 +3688,121 @@ input[type="text"].todo-add-input.has-value,
 	animation: sleekDayJumpPulse 1.2s ease-out;
 }
 
+/* While a tile is in flight the header of the day it would land on swells up and
+   takes a neutral wash, so the landing date reads at a glance — whether the tile is
+   nudged within its own day or carried to another. The weekday name is the only
+   coloured mark, and it wears the user's own accent exactly as "today" does; the
+   number merely grows and brightens with the rest. No borders, no purple accent. */
+.sleek-calendar-app .day-header-inner.is-drop-target {
+	opacity: 1 !important;
+	background-color: var(--background-modifier-hover) !important;
+	/* Grow DOWNWARD from the header's own top edge, never upward. The header strip
+	   sits flush against the top of the scrolling grid container, which clips
+	   anything that rises past it — a centred scale used to push the enlarged date
+	   up under that edge and shear its top off. Pinning the origin to the top keeps
+	   the header's top edge exactly where it was, so the date still swells to mark
+	   the landing day but can never look clipped. */
+	transform-origin: center top;
+	transform: scale(1.15);
+}
+
+/* The little tick under a header marks the column; while that header is enlarged
+   it would otherwise surface through the pill's lower edge, so it steps aside. */
+.day-header.is-drop-target .day-header-tick {
+	opacity: 0;
+}
+
+.sleek-calendar-app .day-header-inner.is-drop-target .day-number {
+	color: var(--text-normal) !important;
+	font-weight: 800 !important;
+}
+
+.sleek-calendar-app .day-header-inner.is-drop-target .day-name {
+	color: var(--sleek-accent, var(--text-normal)) !important;
+	font-weight: 700 !important;
+}
+
+/* With the accent switched off the weekday name stays neutral too, matching the
+   "today" header's own accent-off fallback. */
+.sleek-accent-off .day-header-inner.is-drop-target .day-name {
+	color: var(--text-normal) !important;
+}
+
+/* Holding a tile against either end of the grid asks the calendar to page on a whole
+   page — forwards from the right, backwards from the left. This pill rides the end
+   being pushed against for as long as the hold is armed: over the timer column on the
+   right, over the time labels on the left. A thin line along its floor fills across the
+   dwell, so the wait is legible and the step never reads as though it fired out of
+   nowhere. Neutral wash only: no accent, no borders of any colour. */
+.sleek-main-grid .sleek-edge-step-hint {
+	position: absolute;
+	top: 50%;
+	transform: translateY(-50%);
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	padding: 8px 13px 10px 14px;
+	border-radius: 999px;
+	background-color: var(--background-secondary);
+	color: var(--text-normal);
+	font-size: 12.5px;
+	font-weight: 600;
+	letter-spacing: 0.2px;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+	overflow: hidden;
+	pointer-events: none;
+	z-index: 60;
+	animation: sleekEdgeStepIn 0.16s ease-out;
+}
+
+.sleek-main-grid .sleek-edge-step-hint.is-next {
+	right: 16px;
+}
+
+.sleek-main-grid .sleek-edge-step-hint.is-prev {
+	left: 16px;
+}
+
+.sleek-main-grid .sleek-edge-step-hint .sleek-edge-step-text {
+	white-space: nowrap;
+}
+
+/* The dwell, drawn: it fills along the pill's floor over the hold's own delay. */
+.sleek-main-grid .sleek-edge-step-hint::after {
+	content: '';
+	position: absolute;
+	left: 0;
+	bottom: 0;
+	width: 100%;
+	height: 2px;
+	background-color: var(--text-muted);
+	transform: scaleX(0);
+	transform-origin: left center;
+	animation: sleekEdgeStepFill 0.7s linear forwards;
+}
+
+/* Fade only: the pill is anchored at one end or the other by `is-next` / `is-prev`, and
+   a slide would have to know which, so it simply eases in where it stands. */
+@keyframes sleekEdgeStepIn {
+	from {
+		opacity: 0;
+	}
+
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes sleekEdgeStepFill {
+	from {
+		transform: scaleX(0);
+	}
+
+	to {
+		transform: scaleX(1);
+	}
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.day-column .placeholder-event {
 		transition: none !important;
@@ -3477,7 +3812,24 @@ input[type="text"].todo-add-input.has-value,
 		animation: none !important;
 	}
 
+	.placeholder-event.tile-reveal {
+		animation: none !important;
+	}
+
+	.placeholder-event.context-pulse {
+		animation: none !important;
+	}
+
 	.day-header-inner.is-jump-highlight {
+		animation: none !important;
+	}
+
+	.sleek-calendar-app .day-header-inner.is-drop-target {
+		transform: none;
+	}
+
+	.sleek-main-grid .sleek-edge-step-hint,
+	.sleek-main-grid .sleek-edge-step-hint::after {
 		animation: none !important;
 	}
 }
@@ -3681,24 +4033,13 @@ body.sleek-tile-dragging .timer-zone * {
 	pointer-events: none !important;
 }
 
-@keyframes eventBubbleFadeIn {
-	from {
-		opacity: 0;
-		transform: scale(0.85);
-	}
-
-	to {
-		opacity: 1;
-		transform: scale(1);
-	}
-}
-
-.event-delete-bubble {
-	animation: eventBubbleFadeIn 0.16s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-	background: transparent !important;
-	border: none !important;
-	outline: none !important;
-	box-shadow: none !important;
+/* The tiles go inert too — the one in flight included. While a drag is live no tile in
+   the grid may take hover, a press or the context menu, so nothing can flicker, lift, or
+   steal the pointer out from under the tile being moved. dnd-kit follows the pointer at
+   the document level and measures its droppables geometrically, so the drag itself is
+   untouched by this. */
+body.sleek-tile-dragging .days-body .placeholder-event {
+	pointer-events: none !important;
 }
 
 @keyframes eventContextMenuFadeIn {
@@ -3716,6 +4057,17 @@ body.sleek-tile-dragging .timer-zone * {
 .event-context-menu {
 	animation: eventContextMenuFadeIn 0.12s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 	transform-origin: top left;
+}
+
+/* The event context menu is always a dark glass panel, independent of the
+   Obsidian theme. In light mode `--text-normal` / `--text-muted` resolve to
+   dark ink, which would render dark-on-dark and be unreadable. Remapping the
+   ink variables inside the menu keeps all of its text and icons light and
+   legible in both themes. */
+.event-context-menu,
+.event-context-menu * {
+	--text-normal: rgba(255, 255, 255, 0.92);
+	--text-muted: rgba(255, 255, 255, 0.6);
 }
 
 .event-context-menu-item {
@@ -4145,10 +4497,19 @@ body.sleek-tile-dragging .timer-zone * {
 	background-color: var(--background-modifier-border) !important;
 }
 
-.sleek-bg-dim-setting input[type="range"]::-webkit-slider-thumb {
+/* Keep the thumb a plain round dot in every state — no theme rule should be able to
+   stretch it into an oval while it is being dragged. */
+.sleek-bg-dim-setting input[type="range"]::-webkit-slider-thumb,
+.sleek-bg-dim-setting input[type="range"]:hover::-webkit-slider-thumb,
+.sleek-bg-dim-setting input[type="range"]:active::-webkit-slider-thumb,
+.sleek-bg-dim-setting input[type="range"]:focus::-webkit-slider-thumb,
+.sleek-bg-dim-setting input[type="range"]:focus-visible::-webkit-slider-thumb {
 	background-color: var(--text-muted) !important;
 	border: none !important;
 	box-shadow: none !important;
+	border-radius: 50% !important;
+	transform: none !important;
+	transition: none !important;
 }
 
 .sleek-bg-dim-setting input[type="range"]::-moz-range-track {
@@ -4159,6 +4520,9 @@ body.sleek-tile-dragging .timer-zone * {
 	background-color: var(--text-muted) !important;
 	border: none !important;
 	box-shadow: none !important;
+	border-radius: 50% !important;
+	transform: none !important;
+	transition: none !important;
 }
 
 /* ==========================================================================
@@ -4733,7 +5097,10 @@ body.sleek-tile-dragging .timer-zone * {
 	font-size: 13px;
 	font-weight: 600;
 	letter-spacing: 0.01em;
-	color: var(--text-normal, #f1f5f9);
+	/* The panel is always a dark surface, so keep the text bright in every theme.
+	   Obsidian's --text-normal flips to a dark colour in light mode, which became
+	   unreadable here (dark text on the dark panel). */
+	color: #f4f6fa;
 }
 
 .sleek-settings-close {
@@ -4751,14 +5118,14 @@ body.sleek-tile-dragging .timer-zone * {
 	justify-content: center;
 	flex-shrink: 0;
 	box-sizing: border-box;
-	color: rgba(255, 255, 255, 0.5);
+	color: rgba(255, 255, 255, 0.7);
 	transition: background-color 0.1s ease, color 0.1s ease;
 }
 
 .sleek-settings-close:hover,
 .sleek-settings-close:focus-visible {
 	background-color: rgba(255, 255, 255, 0.1);
-	color: var(--text-normal, #ffffff);
+	color: #ffffff;
 }
 
 .sleek-settings-scroll {
@@ -4788,7 +5155,7 @@ body.sleek-tile-dragging .timer-zone * {
 	font-weight: 600;
 	letter-spacing: 0.09em;
 	text-transform: uppercase;
-	color: rgba(255, 255, 255, 0.42);
+	color: rgba(255, 255, 255, 0.62);
 	padding: 4px 8px 7px 8px;
 }
 
@@ -4822,13 +5189,13 @@ body.sleek-tile-dragging .timer-zone * {
 
 .sleek-settings-row-label {
 	font-size: 13px;
-	color: var(--text-normal, #e8ebf0);
+	color: #eceff4;
 	line-height: 1.25;
 }
 
 .sleek-settings-row-desc {
 	font-size: 11px;
-	color: rgba(255, 255, 255, 0.45);
+	color: rgba(255, 255, 255, 0.68);
 	line-height: 1.35;
 }
 
@@ -4899,7 +5266,7 @@ body.sleek-tile-dragging .timer-zone * {
 	box-sizing: border-box;
 	font-size: 12.5px;
 	font-family: inherit;
-	color: var(--text-normal, #e8ebf0);
+	color: #eceff4;
 	background: rgba(255, 255, 255, 0.06);
 	border: 1px solid rgba(255, 255, 255, 0.12);
 	border-radius: 7px;
@@ -5010,7 +5377,7 @@ body.sleek-tile-dragging .timer-zone * {
 	box-sizing: border-box;
 	font-size: 12.5px;
 	font-family: inherit;
-	color: var(--text-normal, #e8ebf0);
+	color: #eceff4;
 	background: rgba(255, 255, 255, 0.06);
 	border: 1px solid rgba(255, 255, 255, 0.12);
 	border-radius: 7px;
@@ -5021,7 +5388,7 @@ body.sleek-tile-dragging .timer-zone * {
 }
 
 .sleek-settings-input::placeholder {
-	color: rgba(255, 255, 255, 0.3);
+	color: rgba(255, 255, 255, 0.5);
 }
 
 .sleek-settings-input:focus {
@@ -5034,7 +5401,7 @@ body.sleek-tile-dragging .timer-zone * {
 	padding: 0 11px;
 	font-size: 12px;
 	font-family: inherit;
-	color: var(--text-normal, #e8ebf0);
+	color: #eceff4;
 	background: rgba(255, 255, 255, 0.08);
 	border: 1px solid rgba(255, 255, 255, 0.12);
 	border-radius: 7px;
@@ -5056,7 +5423,7 @@ body.sleek-tile-dragging .timer-zone * {
 	align-items: center;
 	justify-content: center;
 	padding: 0;
-	color: rgba(255, 255, 255, 0.55);
+	color: rgba(255, 255, 255, 0.75);
 	background: transparent;
 	border: 1px solid transparent;
 	border-radius: 7px;
@@ -5068,7 +5435,7 @@ body.sleek-tile-dragging .timer-zone * {
 
 .sleek-settings-icon-btn:hover {
 	background: rgba(255, 255, 255, 0.1);
-	color: var(--text-normal, #ffffff);
+	color: #ffffff;
 }
 
 /* ---- Slider ---- */
@@ -5090,14 +5457,34 @@ body.sleek-tile-dragging .timer-zone * {
 	cursor: pointer;
 }
 
-.sleek-settings-slider input[type="range"]::-webkit-slider-thumb {
-	-webkit-appearance: none;
-	appearance: none;
-	width: 13px;
-	height: 13px;
-	border-radius: 50%;
-	background: #ffffff;
-	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+.sleek-settings-slider input[type="range"]::-webkit-slider-runnable-track {
+	-webkit-appearance: none !important;
+	appearance: none !important;
+	height: 4px;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.16);
+}
+
+/* The thumbs are plain dots: locked to a perfect circle in every state, with any
+   transform/transition neutralised, so no theme rule can stretch one into an oval
+   while the slider is being dragged. */
+.sleek-settings-slider input[type="range"]::-webkit-slider-thumb,
+.sleek-settings-slider input[type="range"]:hover::-webkit-slider-thumb,
+.sleek-settings-slider input[type="range"]:active::-webkit-slider-thumb,
+.sleek-settings-slider input[type="range"]:focus::-webkit-slider-thumb,
+.sleek-settings-slider input[type="range"]:focus-visible::-webkit-slider-thumb {
+	-webkit-appearance: none !important;
+	appearance: none !important;
+	width: 13px !important;
+	height: 13px !important;
+	min-width: 13px !important;
+	max-width: 13px !important;
+	border-radius: 50% !important;
+	background: #ffffff !important;
+	border: none !important;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4) !important;
+	transform: none !important;
+	transition: none !important;
 }
 
 .sleek-settings-slider input[type="range"]::-moz-range-track {
@@ -5107,16 +5494,20 @@ body.sleek-tile-dragging .timer-zone * {
 }
 
 .sleek-settings-slider input[type="range"]::-moz-range-thumb {
-	width: 13px;
-	height: 13px;
-	border: none;
-	border-radius: 50%;
-	background: #ffffff;
+	width: 13px !important;
+	height: 13px !important;
+	min-width: 13px !important;
+	max-width: 13px !important;
+	border: none !important;
+	border-radius: 50% !important;
+	background: #ffffff !important;
+	transform: none !important;
+	transition: none !important;
 }
 
 .sleek-settings-slider-value {
 	font-size: 11.5px;
-	color: rgba(255, 255, 255, 0.6);
+	color: rgba(255, 255, 255, 0.82);
 	min-width: 34px;
 	text-align: right;
 	font-variant-numeric: tabular-nums;
@@ -5130,7 +5521,7 @@ body.sleek-tile-dragging .timer-zone * {
 	box-sizing: border-box;
 	font-size: 12.5px;
 	font-family: inherit;
-	color: var(--text-normal, #e8ebf0);
+	color: #eceff4;
 	background: rgba(255, 255, 255, 0.06);
 	border: 1px solid rgba(255, 255, 255, 0.12);
 	border-radius: 7px;
@@ -5191,7 +5582,7 @@ body.sleek-tile-dragging .timer-zone * {
 
 .sleek-settings-calendar-name {
 	font-size: 12.5px;
-	color: var(--text-normal, #e8ebf0);
+	color: #eceff4;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -5200,7 +5591,7 @@ body.sleek-tile-dragging .timer-zone * {
 .sleek-settings-note {
 	font-size: 11.5px;
 	line-height: 1.45;
-	color: rgba(255, 255, 255, 0.45);
+	color: rgba(255, 255, 255, 0.68);
 	padding: 5px 8px 8px 8px;
 }
 
@@ -5625,4 +6016,390 @@ body.sleek-tile-dragging .timer-zone * {
 	opacity: 0.6;
 	cursor: default;
 	filter: none;
+}
+
+/* ==========================================================================
+   MONTH VIEW
+   A full-month calendar that replaces the sliding day columns when the header's
+   view dropdown is set to "Month". Seven days across, the whole month down — no
+   timeline, no hour scale. A day tile wears the app's own event palette: a quiet
+   day wears the user's chosen default, and a day carrying events takes a stable
+   colour chosen to oppose the busy day before it, so a run of events becomes a
+   back-and-forth across the colour wheel. The colour lives on the tile's own
+   background (written inline by MonthView), so this file only owns the tile's
+   shape, its neutral states, and the weekday strip that lights the column under
+   the pointer. No purple, no accent variable, no coloured border anywhere.
+   ========================================================================== */
+
+/* The chip that follows the pointer while a day's events are being carried to another day: a
+   small neutral card on the same glass surface as the tile menus, saying how many events are in
+   hand and which day they came from. It is rendered in a portal and placed by its own transform,
+   so the calendar's overflow never clips it, and it never takes the pointer — the day underneath
+   has to stay reachable for the drop. */
+.month-copy-ghost {
+	position: fixed;
+	top: 0;
+	left: 0;
+	z-index: 2900;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 12px;
+	border-radius: 10px;
+	background: rgba(28, 29, 32, 0.95);
+	backdrop-filter: blur(20px);
+	-webkit-backdrop-filter: blur(20px);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	box-shadow: 0 16px 36px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.3);
+	color: #f4f6fa;
+	pointer-events: none;
+	user-select: none;
+}
+
+.month-copy-ghost svg {
+	flex-shrink: 0;
+	opacity: 0.7;
+}
+
+.month-copy-ghost-text {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+}
+
+.month-copy-ghost-title {
+	font-size: 12.5px;
+	font-weight: 600;
+}
+
+.month-copy-ghost-sub {
+	font-size: 11px;
+	color: rgba(255, 255, 255, 0.6);
+}
+
+.month-view {
+	/* One gap, shared by the day tiles inside a month and by the seam where two months meet on
+	   the track: the wheel can rest the calendar between two months, and that join must read as
+	   just another row gap rather than the two months buttered up against each other. */
+	--month-gap: 6px;
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	padding: 2px 14px 14px 14px;
+}
+
+.month-week-strip {
+	display: grid;
+	grid-template-columns: repeat(7, 1fr);
+	gap: 6px;
+	padding: 6px 2px 8px 2px;
+	flex-shrink: 0;
+}
+
+.month-week-label {
+	font-size: 12px;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	text-align: center;
+	color: var(--text-faint);
+	padding: 2px 0;
+	border-radius: 6px;
+	transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+/* The weekday the calendar is sitting on: a shade brighter than its neighbours, so the
+   month always points at its own column even before the pointer arrives. Neutral — no
+   accent, no coloured border. */
+.month-week-label.is-current {
+	color: var(--text-muted);
+}
+
+/* The column under the pointer — or the one just clicked, for the moment before the view
+   swaps to the day columns. The label warms to the theme's own hover wash and its
+   brightest text colour. Neutral throughout: no accent variable, no purple, no border. */
+.month-week-label.is-active {
+	color: var(--text-normal);
+	background-color: var(--background-modifier-hover);
+}
+
+.month-grid {
+	flex: 1;
+	min-height: 0;
+	display: grid;
+	grid-template-columns: repeat(7, 1fr);
+	gap: var(--month-gap);
+}
+
+/* The months ride a vertical track, one pane per month, and the wheel pulls the track rather
+   than stepping it — so a scroll glides through the year instead of flicking from month to
+   month. The clip is the window; every pane fills it exactly, and its offset is written
+   inline as a percentage of its own height, which is what lets a whole month be expressed as
+   a plain 100%. Nothing here needs to know how tall a pane is. */
+.month-track-clip {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+}
+
+/* The only thing that changes while the wheel turns is this transform, so the pull is the
+   transition and nothing else. One unhurried speed: heavy enough that the track leans over as
+   the wheel turns rather than snapping about, and free to stop anywhere the wheel leaves it —
+   there is no landing to reach, so the calendar rests between two months as happily as on one.
+   The pane keeps the month gap back at its foot, so a month that comes to rest below another
+   still leaves between them the same gap every pair of weeks inside a month has — the join reads
+   as just another row gap instead of the two months buttered together. */
+.month-pane {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	padding-bottom: var(--month-gap);
+	transition: transform 0.3s cubic-bezier(0.33, 1, 0.68, 1);
+	will-change: transform;
+}
+
+.month-day-tile {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	min-width: 0;
+	min-height: 0;
+	padding: 6px 8px;
+	border-radius: 10px;
+	border: 1px solid transparent;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+	color: rgba(0, 0, 0, 0.85);
+	cursor: pointer;
+	overflow: hidden;
+	user-select: none;
+	transition: filter 0.15s ease, box-shadow 0.18s ease, transform 0.18s cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+/* Hover: the same idea as an event tile in the day view (a lift in brightness), only a
+	  touch more generous — the tile floats a couple of pixels and warms very slightly, so a
+	  pointer rolling across a full month of tiles reads as a gentle swell rather than a
+	  flicker. Neutral: no accent, no coloured border. */
+.month-day-tile:hover {
+	filter: brightness(1.075) saturate(1.1);
+	box-shadow: 0 10px 22px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.16);
+	transform: translateY(-2px) scale(1.018);
+	z-index: 3;
+}
+
+/* Right-click replays the exact one-shot press the event tiles use in the day view, so a
+	  month day acknowledges the click in the app's own motion language. The keyframe animates
+	  the independent `scale` property, so it composes with the hover `transform` above instead
+	  of fighting it. Neutral — no accent, no border. */
+.month-day-tile.context-pulse {
+	animation: sleekTileContextPulse 0.26s cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+/* Entering the month shape: this whole grid is only mounted when the view is actually switched
+   to it, so every day tile settles in together with one short, quiet drop — a small lift and a
+   fade that reads as the month dropping into place. It is scoped to the entering class, which is
+   dropped moments later, so scrolling the track or rolling to another month never replays it.
+   The independent `translate`/`scale` are animated so the motion composes with the hover
+   `transform` above instead of fighting it. Neutral: no accent, no coloured border. */
+@keyframes sleekMonthEnter {
+	from {
+		translate: 0 -9px;
+		scale: 0.992;
+		opacity: 0;
+	}
+
+	to {
+		translate: 0 0;
+		scale: 1;
+		opacity: 1;
+	}
+}
+
+.month-view.is-entering .month-day-tile:not(.is-outside) {
+	animation: sleekMonthEnter 0.38s cubic-bezier(0.22, 0.61, 0.36, 1);
+	will-change: translate, scale, opacity;
+}
+
+/* A to-do or a note is hovering this day: the tile leans in and takes a neutral ring —
+   the same treatment the day columns' own drop targets use. Never an accent colour,
+   never a coloured border. */
+.month-day-tile.is-drop-target {
+	box-shadow: 0 0 0 2px var(--text-normal), 0 12px 24px rgba(0, 0, 0, 0.32);
+	filter: brightness(1.1) saturate(1.12);
+	transform: translateY(-2px) scale(1.02);
+	z-index: 4;
+}
+
+/* Days spilling in from the neighbouring month: blank cells that keep the grid's columns open,
+   so the month's own days sit under their proper weekdays. They carry no tile, no number and no
+   ring of their own — only a hover wash, so a click can still open that day. Not a colour-menu
+   target, and never an accent colour or coloured border. */
+.month-day-tile.is-outside {
+	background: transparent !important;
+	color: var(--text-faint);
+	box-shadow: none;
+	cursor: default;
+}
+
+.month-day-tile.is-outside:hover {
+	filter: none;
+	transform: none;
+	z-index: auto;
+	box-shadow: none;
+	background: var(--background-modifier-hover) !important;
+}
+
+/* While a day is being carried to another day, the day underneath says it will take the copy:
+   the very same treatment the drop targets use — a neutral ring and a lean, never a colour and
+   never a coloured border. The `is-outside` variants are listed here too, so a day spilling in
+   from the neighbouring month can be a destination just as readily as one of the month's own;
+   they have to be, since the outside rules land after the drop-target ones and would otherwise
+   win on a hovered tile. The class is written straight onto the element by the drag rather than
+   through a render, so a pointer crossing a whole month of tiles costs no renders at all. */
+.month-day-tile.is-copy-target,
+.month-day-tile.is-copy-target:hover,
+.month-day-tile.is-outside.is-copy-target,
+.month-day-tile.is-outside.is-copy-target:hover {
+	box-shadow: 0 0 0 2px var(--text-normal), 0 12px 24px rgba(0, 0, 0, 0.32);
+	filter: brightness(1.1) saturate(1.12);
+	transform: translateY(-2px) scale(1.02);
+	z-index: 4;
+}
+
+/* The day the events are coming from stays marked for the whole gesture, so there is never any
+   doubt about which day is being copied. Held back rather than ringed: a source is not a
+   target. */
+.month-day-tile.is-copy-source {
+	filter: brightness(0.9) saturate(0.85);
+	opacity: 0.7;
+}
+
+/* The pointer owns the gesture while a day is being carried: a grabbing hand over every tile
+   until the button comes back up. */
+.month-view.is-copy-dragging .month-day-tile {
+	cursor: grabbing;
+}
+
+.month-day-tile.is-today {
+	box-shadow: inset 0 0 0 1.5px var(--background-modifier-border-hover, var(--background-modifier-border));
+}
+
+/* The day the calendar is currently sitting on (the same day the header names).
+   A neutral ring only — never a coloured border. */
+.month-day-tile.is-selected {
+	box-shadow: 0 0 0 2px var(--text-normal), 0 6px 16px rgba(0, 0, 0, 0.24);
+}
+
+.month-day-number {
+	font-size: clamp(12px, 2.2vh, 17px);
+	font-weight: 600;
+	line-height: 1.05;
+	color: inherit;
+}
+
+.month-day-tile.is-today .month-day-number {
+	color: rgba(0, 0, 0, 0.92);
+}
+
+/* The day's events, listed under the date number. Held to the bottom of the tile, so a busy
+   day's list grows upwards into the room the tile has and a quiet one keeps its single line
+   where the day number leaves it. */
+.month-day-events {
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-end;
+	gap: 1px;
+	min-width: 0;
+	margin-top: 2px;
+	overflow: hidden;
+}
+
+/* One line each, so the tile always knows exactly how many events it is showing: a title that
+   could wrap would spend rows the tile had counted for other events. The full title is still
+   reachable through the tile's own tooltip, which names the day and counts what it holds. */
+.month-day-event-title {
+	font-size: 10.5px;
+	line-height: 1.25;
+	font-weight: 500;
+	color: rgba(0, 0, 0, 0.6);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	min-width: 0;
+}
+
+.month-day-event-more {
+	font-size: 10px;
+	font-weight: 600;
+	color: rgba(0, 0, 0, 0.48);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.month-day-tile {
+		transition: none !important;
+	}
+
+	.month-week-label {
+		transition: none !important;
+	}
+
+	.month-day-tile:hover {
+		transform: none !important;
+	}
+
+	.month-day-tile.context-pulse {
+		animation: none !important;
+	}
+
+	.month-view.is-entering .month-day-tile:not(.is-outside) {
+		animation: none !important;
+	}
+
+	.month-day-tile.is-drop-target {
+		transform: none !important;
+	}
+
+	.month-pane {
+		transition: none !important;
+	}
+}
+
+/* ---------------------------------------------------------------------------
+	  Sidebar — "Daily Note To-Do" (month view only).
+	  A quieter sibling of the day-bound To Do list: one label per day, then the
+	  to-dos pulled from that day's daily note. Strictly neutral — no coloured
+	  borders, no purple; the only colour is each row's own derived accent, spent on
+	  the filled circle and the strikethrough, exactly as the day list does it.
+--------------------------------------------------------------------------- */
+.sidebar-monthly-todos {
+	padding-top: 4px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.sidebar-monthly-month-label {
+	font-size: 11.5px;
+	color: var(--text-faint);
+	letter-spacing: 0.2px;
+}
+
+.sidebar-monthly-status {
+	font-size: 12.5px;
+	color: var(--text-faint);
+	padding: 0 4px 4px 4px;
+}
+
+/* The day a run of to-dos came from: a small, quiet, uppercase rule that groups
+	  the rows without competing with the "To Do" heading above. */
+.sidebar-monthly-day-label {
+	font-size: 10.5px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.6px;
+	color: var(--text-faint);
+	padding: 2px 4px;
+	opacity: 0.85;
 }

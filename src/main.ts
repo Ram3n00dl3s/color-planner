@@ -65,6 +65,28 @@ export interface CalendarPluginSettings {
 	 * event pane, so nothing is lost — the tiles are just quieter.
 	 */
 	showTileDetails: boolean;
+	/**
+	 * Which calendar shape to show: the sliding day columns ('days', 1–7) or the
+	 * full-month grid ('month'). Stored as a string so it round-trips cleanly.
+	 */
+	viewMode: string;
+	/** Default palette colour for a month-view day tile that carries no events. */
+	monthViewDefaultColor: string;
+	/**
+	 * Per-day colour overrides for the month view, keyed by `YYYY-M-D`. A day the
+	 * user has recoloured by hand keeps that colour; everything else falls back to
+	 * the default colour (quiet days) or to an automatic colour (busy days).
+	 */
+	monthDayColors: Record<string, string>;
+	/**
+	 * The automatic colours the month view has already settled on, keyed by `YYYY-M-D`.
+	 *
+	 * The app paints a month's busy days once, in date order, each colour opposite the
+	 * one before it. Those decisions are written here so they are never revisited: a
+	 * day added later takes a plain random colour of its own and leaves every colour
+	 * already on screen exactly as it was.
+	 */
+	monthAutoDayColors: Record<string, string>;
 }
 
 const DEFAULT_SETTINGS: CalendarPluginSettings = {
@@ -96,7 +118,15 @@ const DEFAULT_SETTINGS: CalendarPluginSettings = {
 	// shows an empty swatch and new tiles fall back to pastel blue).
 	defaultEventColor: '',
 	// On by default: tiles have always shown their to-do/description lines.
-	showTileDetails: true
+	showTileDetails: true,
+	// The calendar opens in the familiar sliding day columns.
+	viewMode: 'days',
+	// A calm pastel for quiet days in the month view.
+	monthViewDefaultColor: 'pastel-blue',
+	// No hand-picked day colours to begin with.
+	monthDayColors: {},
+	// Nothing has been painted automatically yet.
+	monthAutoDayColors: {}
 }
 
 export default class SleekCalendarPlugin extends Plugin {
@@ -127,7 +157,9 @@ export default class SleekCalendarPlugin extends Plugin {
 	}
 
 	onunload() {
-		this.app.workspace.detachLeavesOfType(CALENDAR_VIEW_TYPE);
+		// Intentionally do not detach leaves here. Obsidian reinitializes open
+		// leaves on plugin update and restores them to their original position,
+		// so detaching views in onunload is discouraged by the plugin guidelines.
 	}
 
 	async activateView() {
@@ -198,6 +230,20 @@ export default class SleekCalendarPlugin extends Plugin {
 		// Absent means an existing install: keep showing them.
 		if (typeof this.settings.showTileDetails !== 'boolean') {
 			this.settings.showTileDetails = true;
+		}
+		// Month view: which shape to show, the default day-tile colour, and any
+		// per-day colour overrides. Anything unrecognised falls back cleanly.
+		if (this.settings.viewMode !== 'month') {
+			this.settings.viewMode = 'days';
+		}
+		if (typeof this.settings.monthViewDefaultColor !== 'string' || !this.settings.monthViewDefaultColor) {
+			this.settings.monthViewDefaultColor = 'pastel-blue';
+		}
+		if (!this.settings.monthDayColors || typeof this.settings.monthDayColors !== 'object' || Array.isArray(this.settings.monthDayColors)) {
+			this.settings.monthDayColors = {};
+		}
+		if (!this.settings.monthAutoDayColors || typeof this.settings.monthAutoDayColors !== 'object' || Array.isArray(this.settings.monthAutoDayColors)) {
+			this.settings.monthAutoDayColors = {};
 		}
 	}
 

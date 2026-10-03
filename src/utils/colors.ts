@@ -166,6 +166,60 @@ export const resolveAccentHex = (name?: string | null): string | null => {
  */
 export const ACCENT_CHIP_TINT_ALPHA = 0.14;
 
+/**
+ * How far a chosen accent is softened before the app uses it.
+ *
+ * The pickable swatches are bright, high-chroma pastels. At full strength a
+ * chosen accent overpowers the neutral UI it is dropped into — it reads bright
+ * and intense whether it lands as a solid fill, as text or as a tint wash. The
+ * accent keeps the hue the user picked but loses chroma, and a little light, so
+ * every surface that wears it reads calmer.
+ */
+const ACCENT_SATURATION_SCALE = 0.68;
+const ACCENT_LIGHTNESS_SCALE = 0.9;
+
+/**
+ * A softened variant of an accent colour, returned in the same #rrggbb form.
+ *
+ * Called once, where the accent is resolved, so the CSS variables, the tint wash
+ * and every component handed the hex are all toned down by exactly the same
+ * amount instead of each surface fiddling with the colour on its own. Input that
+ * is not a readable #rgb / #rrggbb string is handed straight back untouched.
+ */
+export const toneDownAccent = (hex?: string | null): string | null => {
+    const rgb = rgbOf(hex);
+    if (!rgb) return hex ?? null;
+    const [r, g, b] = rgb.map(channel => channel / 255) as [number, number, number];
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const delta = max - min;
+    const lightness = (max + min) / 2;
+    const saturation = delta === 0 ? 0 : delta / (1 - Math.abs(2 * lightness - 1));
+    let hue = 0;
+    if (delta !== 0) {
+        if (max === r) hue = ((g - b) / delta) % 6;
+        else if (max === g) hue = (b - r) / delta + 2;
+        else hue = (r - g) / delta + 4;
+        hue = (hue * 60 + 360) % 360;
+    }
+
+    const s = saturation * ACCENT_SATURATION_SCALE;
+    const l = lightness * ACCENT_LIGHTNESS_SCALE;
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+    const m = l - c / 2;
+    let channels: [number, number, number];
+    if (hue < 60) channels = [c, x, 0];
+    else if (hue < 120) channels = [x, c, 0];
+    else if (hue < 180) channels = [0, c, x];
+    else if (hue < 240) channels = [0, x, c];
+    else if (hue < 300) channels = [x, 0, c];
+    else channels = [c, 0, x];
+    const toChannel = (value: number) =>
+        Math.round(Math.min(1, Math.max(0, value + m)) * 255).toString(16).padStart(2, '0');
+    return `#${channels.map(toChannel).join('')}`;
+};
+
 /** Convert a #rgb / #rrggbb hex color string into an rgba() string. */
 export const hexToRgba = (hex: string, alpha: number): string => {
     const clean = (hex || '').replace('#', '');
@@ -201,6 +255,115 @@ export const randomEventDotColor = (date: Date): string => {
     }
     const name = EVENT_DOT_COLOR_NAMES[Math.abs(hash) % EVENT_DOT_COLOR_NAMES.length];
     return EVENT_COLOR_HEX[name] || DEFAULT_ACCENT_HEX;
+};
+
+/**
+ * Stable pseudo-random palette NAME for a calendar day, in palette order.
+ *
+ * Used to paint a month-view day tile that carries one or more events: the
+ * colour is deterministic per date (so a day's tile never flickers between
+ * renders or while navigating months) yet spreads across the palette so
+ * neighbouring busy days rarely collide.
+ *
+ * `exclude` holds palette names to steer away from — normally the user's
+ * default no-event tile colour — so a day with events always reads as a
+ * different colour from a quiet one. If the exclusion would empty the pool the
+ * full palette is used as a fallback.
+ */
+export const randomDayColorName = (date: Date, exclude: string[] = []): string => {
+    const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+    let hash = 0;
+    for (let i = 0; i < key.length; i++) {
+        hash = (hash * 31 + key.charCodeAt(i)) | 0;
+    }
+    const pool = PALETTE_ORDER.filter(name => !exclude.includes(name));
+    const names = pool.length > 0 ? pool : PALETTE_ORDER;
+    return names[Math.abs(hash) % names.length];
+};
+
+/** Hue of a hex colour in degrees (0–360), or null when it has no usable hue. */
+const hueOf = (hex?: string | null): number | null => {
+    const rgb = rgbOf(hex);
+    if (!rgb) return null;
+    const [r, g, b] = rgb.map(channel => channel / 255) as [number, number, number];
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const delta = max - min;
+    if (delta < 1e-6) return null;
+    const lightness = (max + min) / 2;
+    const saturation = delta / (1 - Math.abs(2 * lightness - 1));
+    // A washed-out grey has no opposite to speak of, so it is reported as hueless.
+    if (saturation < 0.08) return null;
+    let hue: number;
+    if (max === r) hue = ((g - b) / delta) % 6;
+    else if (max === g) hue = (b - r) / delta + 2;
+    else hue = (r - g) / delta + 4;
+    hue *= 60;
+    return (hue + 360) % 360;
+};
+
+/** Shortest distance between two hues, in degrees (0–180). */
+const hueDistance = (a: number, b: number): number => {
+    const d = Math.abs(a - b) % 360;
+    return d > 180 ? 360 - d : d;
+};
+
+/** How far off the true opposite a swatch may sit and still count as "opposite". */
+const OPPOSITE_HUE_BAND = 55;
+
+/** Small stable string hash, used only to break ties between equally good picks. */
+const hashOf = (value: string): number => {
+    let hash = 0;
+    for (let i = 0; i < value.length; i++) {
+        hash = (hash * 31 + value.charCodeAt(i)) | 0;
+    }
+    return Math.abs(hash);
+};
+
+/**
+ * The swatch that sits opposite `previous` on the colour wheel.
+ *
+ * Month-view day tiles that carry events are coloured in date order, and each one
+ * is asked to oppose the colour before it: the previous swatch's hue is rotated
+ * 180° and the nearest palette entry wins, so two busy days in a row read as a
+ * deliberate pair rather than two near-identical pastels. Hueless swatches (the
+ * greys) are never chosen, and the previous colour is always excluded so a tile
+ * never simply echoes its neighbour.
+ *
+ * `exclude` steers away from names the caller must avoid — normally the user's
+ * default no-event colour. `seed` breaks the ties between equally opposite
+ * swatches, so the pairs vary from month to month instead of locking onto one
+ * fixed couple.
+ */
+export const oppositeDayColorName = (
+    previous: string,
+    exclude: string[] = [],
+    seed = ''
+): string => {
+    const previousHue = hueOf(EVENT_COLOR_HEX[previous]);
+    const pool = PALETTE_ORDER.filter(name => name !== previous && !exclude.includes(name));
+    const fallbackPool = pool.length > 0 ? pool : PALETTE_ORDER;
+
+    // A grey (or a colour we cannot read) has no direction to oppose: step to some
+    // other swatch rather than inventing one.
+    if (previousHue === null) return fallbackPool[hashOf(seed) % fallbackPool.length];
+
+    const target = (previousHue + 180) % 360;
+    const candidates = pool
+        .map(name => ({ name, hue: hueOf(EVENT_COLOR_HEX[name]) }))
+        .filter((c): c is { name: string; hue: number } => c.hue !== null);
+    if (candidates.length === 0) return fallbackPool[hashOf(seed) % fallbackPool.length];
+
+    const inBand = candidates.filter(c => hueDistance(c.hue, target) <= OPPOSITE_HUE_BAND);
+    const from = inBand.length > 0 ? inBand : candidates;
+    const ranked = [...from].sort(
+        (a, b) => hueDistance(a.hue, target) - hueDistance(b.hue, target)
+    );
+    // Anything within a few degrees of the best match is equally "opposite"; the seed
+    // chooses between them so consecutive months are not carbon copies of each other.
+    const best = hueDistance(ranked[0].hue, target);
+    const tied = ranked.filter(c => hueDistance(c.hue, target) <= best + 6);
+    return tied[hashOf(seed) % tied.length].name;
 };
 
 /**

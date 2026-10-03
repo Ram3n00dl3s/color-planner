@@ -1,16 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns';
-import { TFile } from 'obsidian';
+import { Notice, TFile } from 'obsidian';
 import SleekCalendarPlugin from '../../main';
 import {
 	getTodaysDailyNoteFile,
 	parseDailyNoteTasks,
-	DailyTodoItem
+	DailyTodoItem,
+	getDailyNoteTodosForMonth,
+	MonthlyDailyTodoItem
 } from '../../utils/dailyNotes';
 import { getNowInTimeZone } from '../../utils/timezone';
 import { CalendarEvent, CalendarProfile } from '../../types';
 import { eventOccursOnDay } from '../../utils/events';
 import { randomEventDotColor, accentColorForId, resolveAccentHex, DEFAULT_ACCENT_HEX, hexToRgba, ACCENT_CHIP_TINT_ALPHA } from '../../utils/colors';
+import { getVaultNotes } from '../../utils/dragDrop';
+import { buildPlannerNoteName, createPlannerNote, PLANNER_NOTES_FOLDER } from '../../utils/plannerNotes';
+import { NoteComposer } from './NoteComposer';
 
 
 // Full colour palette offered by the profile creator's "more colours" droplet.
@@ -43,10 +49,34 @@ const DEFAULT_PROFILE_COLOR = PROFILE_SWATCH_COLORS[0];
 // of `calendarProfiles` and never shows up in an event's profile picker.
 const DEFAULT_ROW_ID = '__default__';
 
-export const Sidebar = ({ currentDate, setCurrentDate, plugin, timers, setTimers, accentColor, timeZone, events }: { currentDate: Date, setCurrentDate: (d: Date) => void, plugin?: SleekCalendarPlugin, timers?: any[], setTimers?: React.Dispatch<React.SetStateAction<any[]>>, accentColor?: string | null, timeZone?: string, events?: CalendarEvent[] }) => {
+/* The two note actions share one look: a quiet dashed chip that only warms on hover —
+   the same pairing the event pane uses for its own Link note / Create note buttons. */
+const SIDEBAR_NOTE_BTN_STYLE: React.CSSProperties = {
+	display: 'inline-flex',
+	alignItems: 'center',
+	gap: '6px',
+	padding: '4px 10px',
+	borderRadius: '5px',
+	border: '1px dashed var(--background-modifier-border)',
+	background: 'transparent',
+	color: 'var(--text-muted)',
+	fontSize: '12px',
+	cursor: 'pointer',
+	transition: 'all 0.15s ease'
+};
+
+export const Sidebar = ({ currentDate, setCurrentDate, plugin, timers, setTimers, accentColor, timeZone, events, mode, hiddenProfileIds, onToggleProfileVisibility }: { currentDate: Date, setCurrentDate: (d: Date) => void, plugin?: SleekCalendarPlugin, timers?: any[], setTimers?: React.Dispatch<React.SetStateAction<any[]>>, accentColor?: string | null, timeZone?: string, events?: CalendarEvent[], mode?: 'days' | 'month', hiddenProfileIds?: Set<string>, onToggleProfileVisibility?: (profileId: string) => void }) => {
 
 	// "Now" in the configured time zone (drives today's highlight + day rollover)
 	const nowInTz = getNowInTimeZone(timeZone);
+
+	// Events that should still be reflected in the mini calendar. A profile switched
+	// off from the chips below drops its events out of the day dots too, so the mini
+	// calendar and the grid never disagree about what is showing.
+	const visibleEvents = React.useMemo(() => {
+		if (!hiddenProfileIds || hiddenProfileIds.size === 0) return events;
+		return (events || []).filter(e => !e.profileId || !hiddenProfileIds.has(e.profileId));
+	}, [events, hiddenProfileIds]);
 
 	// Mini Calendar State
 	const [miniMonth, setMiniMonth] = useState(currentDate);
@@ -71,6 +101,18 @@ export const Sidebar = ({ currentDate, setCurrentDate, plugin, timers, setTimers
 		{ id: '3', title: 'Publish blog post', link: '[[Publish blog post]]' }
 	]);
 
+	// --- Notes: the two ways one gets into this pane --------------------------------
+	// "Link note" attaches a note that already exists in the vault; "Create note" writes
+	// a brand-new file into the plugin's own planner folder. The second is the only
+	// place this pane writes to the vault at all, and it only ever creates — no note
+	// this pane did not make is ever opened, edited or appended to.
+	const [noteMenuOpen, setNoteMenuOpen] = useState(false);
+	const [isLinkingNote, setIsLinkingNote] = useState(false);
+	const [noteSearchInput, setNoteSearchInput] = useState('');
+	const [noteSelectedIdx, setNoteSelectedIdx] = useState(0);
+	const [noteDraft, setNoteDraft] = useState<{ name: string } | null>(null);
+	const isSelectingNoteRef = useRef(false);
+
 	// Regular to-do items (synced with Daily Note for currentDate)
 	const [regularTodos, setRegularTodos] = useState<DailyTodoItem[]>([]);
 	const [dailyNoteFile, setDailyNoteFile] = useState<TFile | null>(null);
@@ -88,6 +130,13 @@ export const Sidebar = ({ currentDate, setCurrentDate, plugin, timers, setTimers
 	const completedOverridesRef = useRef<Map<string, boolean>>(new Map());
 	const deletedIdsRef = useRef<Set<string>>(new Set());
 	const customTodosByDayRef = useRef<Map<string, DailyTodoItem[]>>(new Map());
+
+	// Month-wide daily-note to-dos, shown only in the full-month view. Loading is
+	// deferred until the month has been at rest for a beat (see the effect below),
+	// so wheeling through a year never fans out into a vault read per month.
+	const [monthlyDailyTodos, setMonthlyDailyTodos] = useState<MonthlyDailyTodoItem[]>([]);
+	const [monthlyTodosLoading, setMonthlyTodosLoading] = useState<boolean>(false);
+	const monthlyLoadTokenRef = useRef<number>(0);
 
 	// Sync daily note on open, date change, and whenever vault changes (strictly read-only)
 	const syncDailyNoteTasks = async (targetDate: Date = currentDate) => {
@@ -163,6 +212,51 @@ export const Sidebar = ({ currentDate, setCurrentDate, plugin, timers, setTimers
 			plugin.app.vault.offref(deleteRef);
 		};
 	}, [plugin, currentDate]);
+
+	// The month the full-month view is showing, as a stable key. Only a change of
+	// month retriggers the load below — a day step inside the same month does not.
+	const monthKey = format(currentDate, 'yyyy-MM');
+
+	// Pool the month's daily notes, but only once the user has settled on it: the
+	// wait below is reset on every month change, so wheel-scrolling through a year
+	// reads the vault once, when the wheel stops. A stale in-flight load is dropped
+	// by the token check if the month moves on before it returns.
+	useEffect(() => {
+		if (mode !== 'month') {
+			monthlyLoadTokenRef.current += 1;
+			setMonthlyDailyTodos([]);
+			setMonthlyTodosLoading(false);
+			return;
+		}
+
+		setMonthlyTodosLoading(true);
+		const token = ++monthlyLoadTokenRef.current;
+
+		const handle = setTimeout(async () => {
+			if (!plugin?.app) {
+				if (token === monthlyLoadTokenRef.current) setMonthlyTodosLoading(false);
+				return;
+			}
+			try {
+				const items = await getDailyNoteTodosForMonth(plugin.app, currentDate);
+				if (token !== monthlyLoadTokenRef.current) return; // a newer month won
+				// Fold in any completion toggled here and drop deleted rows, reusing the
+				// same calendar-level, note-safe overrides the day list keeps.
+				const merged = items
+					.filter(t => !deletedIdsRef.current.has(t.id))
+					.map(t => completedOverridesRef.current.has(t.id)
+						? { ...t, completed: completedOverridesRef.current.get(t.id)! }
+						: t);
+				setMonthlyDailyTodos(merged);
+			} catch (err) {
+				console.error('Error loading monthly daily-note to-dos:', err);
+			} finally {
+				if (token === monthlyLoadTokenRef.current) setMonthlyTodosLoading(false);
+			}
+		}, 2500);
+
+		return () => clearTimeout(handle);
+	}, [mode, monthKey, plugin]);
 
 	// Detect day change / midnight passing or window focus
 	useEffect(() => {
@@ -293,6 +387,16 @@ export const Sidebar = ({ currentDate, setCurrentDate, plugin, timers, setTimers
 		setRegularTodos(prev => prev.filter(t => !t.completed));
 	};
 
+	// Toggling a month-list row is calendar state only — the override map keeps the
+	// choice across reloads, and the note file itself is never touched.
+	const handleToggleMonthlyTodo = (id: string) => {
+		const current = monthlyDailyTodos.find(t => t.id === id);
+		if (!current) return;
+		const nextCompleted = !current.completed;
+		completedOverridesRef.current.set(id, nextCompleted);
+		setMonthlyDailyTodos(prev => prev.map(t => t.id === id ? { ...t, completed: nextCompleted } : t));
+	};
+
 	const handleDragOver = (e: React.DragEvent) => {
 		e.preventDefault();
 		e.dataTransfer.dropEffect = 'copy';
@@ -390,6 +494,52 @@ export const Sidebar = ({ currentDate, setCurrentDate, plugin, timers, setTimers
 		if (plugin?.app?.workspace && noteName) {
 			plugin.app.workspace.openLinkText(noteName, '', false);
 		}
+	};
+
+	const vaultNotes = getVaultNotes(plugin);
+	const noteSearchQuery = noteSearchInput.replace(/^@/, '').toLowerCase().trim();
+	const noteSuggestions = isLinkingNote
+		? vaultNotes.filter(n => n.basename.toLowerCase().includes(noteSearchQuery) || n.path.toLowerCase().includes(noteSearchQuery)).slice(0, 8)
+		: [];
+
+	useEffect(() => {
+		setNoteSelectedIdx(0);
+	}, [noteSearchQuery]);
+
+	// One note row, added if it is not already in the list. Rows stay plain title + link
+	// so the existing drag handler can hand them to a day untouched.
+	const addNotebookNote = (basename: string) => {
+		const link = `[[${basename}]]`;
+		setNotebookEvents(prev => prev.some(t => t.link === link)
+			? prev
+			: [...prev, { id: Math.random().toString(36).substring(7), title: basename, link }]);
+	};
+
+	const handleAttachVaultNote = (note: { basename: string; path: string }) => {
+		isSelectingNoteRef.current = true;
+		addNotebookNote(note.basename);
+		setIsLinkingNote(false);
+		setNoteSearchInput('');
+		setNoteMenuOpen(false);
+		setTimeout(() => { isSelectingNoteRef.current = false; }, 200);
+	};
+
+	// Opening the composer creates nothing: the note text lives only in the floating card
+	// until the moment the file is written, which happens on Create (⌘/Ctrl+Enter).
+	const openSidebarNoteComposer = () => {
+		setNoteDraft({ name: buildPlannerNoteName(new Date(), 'Note') });
+		setNoteMenuOpen(false);
+	};
+
+	const handleCreateSidebarNote = async (noteBody: string) => {
+		const file = await createPlannerNote(plugin?.app, { name: noteDraft?.name || 'Note', body: noteBody });
+		setNoteDraft(null);
+		if (!file) {
+			new Notice('Could not create the note — check the vault folder.');
+			return;
+		}
+		addNotebookNote(file.basename);
+		new Notice(`Note created: ${file.path}`);
 	};
 
 	const handleAddRegularTodo = () => {
@@ -785,154 +935,190 @@ export const Sidebar = ({ currentDate, setCurrentDate, plugin, timers, setTimers
 	const days = eachDayOfInterval({ start: startDate, end: endDate });
 	const weekDays = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 
+	// Pool the month's daily-note to-dos by day, incomplete first, so the list reads
+	// as a calendar of tasks rather than one long undifferentiated stream.
+	const monthlyGroups = React.useMemo(() => {
+		const byDay = new Map<string, { key: string; date: Date; items: MonthlyDailyTodoItem[] }>();
+		for (const todo of monthlyDailyTodos) {
+			const key = format(todo.date, 'yyyy-MM-dd');
+			let group = byDay.get(key);
+			if (!group) {
+				group = { key, date: todo.date, items: [] };
+				byDay.set(key, group);
+			}
+			group.items.push(todo);
+		}
+		const groups = Array.from(byDay.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
+		for (const group of groups) {
+			group.items.sort((a, b) => Number(Boolean(a.completed)) - Number(Boolean(b.completed)));
+		}
+		return groups;
+	}, [monthlyDailyTodos]);
+
 	return (
 		<div className="sleek-sidebar" style={{ display: 'flex', flexDirection: 'column', height: '100%', boxSizing: 'border-box' }}>
-			{/* Notion-style Mini Calendar */}
-			<div className="sidebar-mini-calendar" style={{ display: 'flex', flexDirection: 'column', userSelect: 'none', padding: '0 2px' }}>
-				{/* Month Header with Navigation */}
-				<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 2px 10px 2px' }}>
-					<span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-normal)', letterSpacing: '-0.1px' }}>
-						{format(miniMonth, 'MMMM yyyy')}
-					</span>
-					<div style={{ display: 'flex', gap: '2px' }}>
-						<button
-							onClick={() => setMiniMonth(subMonths(miniMonth, 1))}
-							style={{
-								background: 'transparent',
-								border: 'none',
-								borderRadius: '4px',
-								width: '22px',
-								height: '22px',
-								display: 'flex',
-								alignItems: 'center',
-								justifyContent: 'center',
-								cursor: 'pointer',
-								color: 'var(--text-muted)',
-								padding: 0,
-								transition: 'background-color 0.15s ease'
-							}}
-							onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--background-modifier-hover)'}
-							onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-							title="Previous month"
-						>
-							<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-								<polyline points="18 15 12 9 6 15"></polyline>
-							</svg>
-						</button>
-						<button
-							onClick={() => setMiniMonth(addMonths(miniMonth, 1))}
-							style={{
-								background: 'transparent',
-								border: 'none',
-								borderRadius: '4px',
-								width: '22px',
-								height: '22px',
-								display: 'flex',
-								alignItems: 'center',
-								justifyContent: 'center',
-								cursor: 'pointer',
-								color: 'var(--text-muted)',
-								padding: 0,
-								transition: 'background-color 0.15s ease'
-							}}
-							onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--background-modifier-hover)'}
-							onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-							title="Next month"
-						>
-							<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-								<polyline points="6 9 12 15 18 9"></polyline>
-							</svg>
-						</button>
-					</div>
-				</div>
+			{noteDraft && createPortal(
+				<NoteComposer
+					noteName={noteDraft.name}
+					folder={PLANNER_NOTES_FOLDER}
+					notes={vaultNotes}
+					accentColor={accentColor}
+					onCancel={() => setNoteDraft(null)}
+					onCreate={handleCreateSidebarNote}
+				/>,
+				document.body
+			)}
 
-				{/* Weekdays */}
-				<div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)', fontWeight: 500, marginBottom: '6px' }}>
-					{weekDays.map(d => (
-						<div key={d} style={{ height: '20px', lineHeight: '20px' }}>{d}</div>
-					))}
-				</div>
-
-				{/* Days Grid */}
-				<div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', textAlign: 'center', rowGap: '6px' }}>
-					{days.map((day, i) => {
-						const isCurrentMonth = isSameMonth(day, monthStart);
-						const isSelected = isSameDay(day, currentDate);
-						const isToday = isSameDay(day, nowInTz);
-						const hasEvent = eventOccursOnDay(events, day);
-						return (
-							<div
-								key={i}
-								onClick={() => {
-									setCurrentDate(day);
-									setMiniMonth(day);
-								}}
+			{/* Notion-style Mini Calendar. Left out of the month view: the grid beside this
+			    pane already is a whole month, so the mini calendar would only say the same
+			    thing twice, and the room is better spent on the to-dos and notes below. */}
+			{mode !== 'month' && (<>
+				<div className="sidebar-mini-calendar" style={{ display: 'flex', flexDirection: 'column', userSelect: 'none', padding: '0 2px' }}>
+					{/* Month Header with Navigation */}
+					<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 2px 10px 2px' }}>
+						<span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-normal)', letterSpacing: '-0.1px' }}>
+							{format(miniMonth, 'MMMM yyyy')}
+						</span>
+						<div style={{ display: 'flex', gap: '2px' }}>
+							<button
+								onClick={() => setMiniMonth(subMonths(miniMonth, 1))}
 								style={{
-									cursor: 'pointer',
-									height: '26px',
-									width: '26px',
+									background: 'transparent',
+									border: 'none',
+									borderRadius: '4px',
+									width: '22px',
+									height: '22px',
 									display: 'flex',
 									alignItems: 'center',
 									justifyContent: 'center',
-									position: 'relative',
-									borderRadius: '6px',
-									fontSize: '12px',
-									fontWeight: isSelected ? 600 : isToday ? 600 : 400,
-									color: isSelected
-										? (accentColor || 'var(--text-normal)')
-										: isToday
-											? (accentColor || 'var(--text-normal)')
-											: isCurrentMonth
-												? 'var(--text-normal)'
-												: 'var(--text-faint)',
-									// A whisper of the accent as a background wash: just enough to read
-									// as "this day carries the accent", never a solid block of colour.
-									background: isSelected
-										? (accentColor ? hexToRgba(accentColor, ACCENT_CHIP_TINT_ALPHA) : 'var(--background-modifier-hover)')
-										: 'transparent',
-									border: !isSelected && isToday ? `1.5px solid ${accentColor || 'var(--background-modifier-border)'}` : '1.5px solid transparent',
-									boxSizing: 'border-box',
-									transition: 'background-color 0.12s ease',
-									userSelect: 'none',
-									margin: '0 auto'
+									cursor: 'pointer',
+									color: 'var(--text-muted)',
+									padding: 0,
+									transition: 'background-color 0.15s ease'
 								}}
-								onMouseEnter={(e) => {
-									if (!isSelected) {
-										e.currentTarget.style.backgroundColor = 'var(--background-modifier-hover)';
-									}
-								}}
-								onMouseLeave={(e) => {
-									if (!isSelected) {
-										e.currentTarget.style.backgroundColor = 'transparent';
-									}
-								}}
-								title={format(day, 'EEEE, MMMM d, yyyy')}
+								onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--background-modifier-hover)'}
+								onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+								title="Previous month"
 							>
-								{format(day, 'd')}
-								{hasEvent && (
-									<span
-										aria-hidden="true"
-										style={{
-											position: 'absolute',
-											bottom: '2px',
-											left: '50%',
-											transform: 'translateX(-50%)',
-											width: '4px',
-											height: '4px',
-											borderRadius: '50%',
-											background: randomEventDotColor(day),
-											pointerEvents: 'none'
-										}}
-									/>
-								)}
-							</div>
-						);
-					})}
-				</div>
-			</div>
+								<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+									<polyline points="18 15 12 9 6 15"></polyline>
+								</svg>
+							</button>
+							<button
+								onClick={() => setMiniMonth(addMonths(miniMonth, 1))}
+								style={{
+									background: 'transparent',
+									border: 'none',
+									borderRadius: '4px',
+									width: '22px',
+									height: '22px',
+									display: 'flex',
+									alignItems: 'center',
+									justifyContent: 'center',
+									cursor: 'pointer',
+									color: 'var(--text-muted)',
+									padding: 0,
+									transition: 'background-color 0.15s ease'
+								}}
+								onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--background-modifier-hover)'}
+								onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+								title="Next month"
+							>
+								<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+									<polyline points="6 9 12 15 18 9"></polyline>
+								</svg>
+							</button>
+						</div>
+					</div>
 
-			{/* Divider between mini-calendar and todo list */}
-			<div style={{ height: '1px', background: 'var(--background-modifier-border)', margin: '12px 2px 8px 2px' }} />
+					{/* Weekdays */}
+					<div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)', fontWeight: 500, marginBottom: '6px' }}>
+						{weekDays.map(d => (
+							<div key={d} style={{ height: '20px', lineHeight: '20px' }}>{d}</div>
+						))}
+					</div>
+
+					{/* Days Grid */}
+					<div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', textAlign: 'center', rowGap: '6px' }}>
+						{days.map((day, i) => {
+							const isCurrentMonth = isSameMonth(day, monthStart);
+							const isSelected = isSameDay(day, currentDate);
+							const isToday = isSameDay(day, nowInTz);
+							const hasEvent = eventOccursOnDay(visibleEvents, day);
+							return (
+								<div
+									key={i}
+									onClick={() => {
+										setCurrentDate(day);
+										setMiniMonth(day);
+									}}
+									style={{
+										cursor: 'pointer',
+										height: '26px',
+										width: '26px',
+										display: 'flex',
+										alignItems: 'center',
+										justifyContent: 'center',
+										position: 'relative',
+										borderRadius: '6px',
+										fontSize: '12px',
+										fontWeight: isSelected ? 600 : isToday ? 600 : 400,
+										color: isSelected
+											? (accentColor || 'var(--text-normal)')
+											: isToday
+												? (accentColor || 'var(--text-normal)')
+												: isCurrentMonth
+													? 'var(--text-normal)'
+													: 'var(--text-faint)',
+										// A whisper of the accent as a background wash: just enough to read
+										// as "this day carries the accent", never a solid block of colour.
+										background: isSelected
+											? (accentColor ? hexToRgba(accentColor, ACCENT_CHIP_TINT_ALPHA) : 'var(--background-modifier-hover)')
+											: 'transparent',
+										border: !isSelected && isToday ? `1.5px solid ${accentColor || 'var(--background-modifier-border)'}` : '1.5px solid transparent',
+										boxSizing: 'border-box',
+										transition: 'background-color 0.12s ease',
+										userSelect: 'none',
+										margin: '0 auto'
+									}}
+									onMouseEnter={(e) => {
+										if (!isSelected) {
+											e.currentTarget.style.backgroundColor = 'var(--background-modifier-hover)';
+										}
+									}}
+									onMouseLeave={(e) => {
+										if (!isSelected) {
+											e.currentTarget.style.backgroundColor = 'transparent';
+										}
+									}}
+									title={format(day, 'EEEE, MMMM d, yyyy')}
+								>
+									{format(day, 'd')}
+									{hasEvent && (
+										<span
+											aria-hidden="true"
+											style={{
+												position: 'absolute',
+												bottom: '2px',
+												left: '50%',
+												transform: 'translateX(-50%)',
+												width: '4px',
+												height: '4px',
+												borderRadius: '50%',
+												background: randomEventDotColor(day),
+												pointerEvents: 'none'
+											}}
+										/>
+									)}
+								</div>
+							);
+						})}
+					</div>
+				</div>
+
+				{/* Divider between mini-calendar and todo list */}
+				<div style={{ height: '1px', background: 'var(--background-modifier-border)', margin: '12px 2px 8px 2px' }} />
+			</>)}
 
 			{/* Drop Zone Area */}
 			<div
@@ -950,9 +1136,10 @@ export const Sidebar = ({ currentDate, setCurrentDate, plugin, timers, setTimers
 					padding: '0 2px'
 				}}
 			>
-				{/* 0. Calendar Profiles. Profiles are calendar-wide, so they are managed
+				{/* 3. Calendar Profiles. Profiles are calendar-wide, so they are managed
 				    here in the default pane — an event only attaches one from the swatch
-				    picker under its title. */}
+				    picker under its title. Presented below Attach Notes via flexbox
+				    `order` (see styles.css). */}
 				<div className="profile-creator-wrapper" style={{ display: 'block', width: '100%' }}>
 					<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
 						<span style={{ fontSize: '14.5px', fontWeight: 600, color: 'var(--text-normal)', letterSpacing: '0.2px' }}>Calendar Profiles</span>
@@ -970,23 +1157,145 @@ export const Sidebar = ({ currentDate, setCurrentDate, plugin, timers, setTimers
 						{calendarProfiles.length === 0 ? (
 							<span style={{ fontSize: '12.5px', color: 'var(--text-faint)' }}>No profiles yet</span>
 						) : (
-							calendarProfiles.map(p => (
-								<span key={p.id} className="sidebar-profile-chip">
-									<span className="sidebar-profile-chip-dot" style={{ background: profileHex(p) }} />
-									{p.name}
-								</span>
-							))
+							calendarProfiles.map(p => {
+								// Clicking a chip flips that profile's visibility: its event
+								// tiles are hidden from the grid, then shown again on the next
+								// click. Nothing about the events themselves is changed.
+								const isHidden = Boolean(hiddenProfileIds && hiddenProfileIds.has(p.id));
+								return (
+									<button
+										key={p.id}
+										type="button"
+										className={`sidebar-profile-chip ${isHidden ? 'is-hidden' : ''}`}
+										title={isHidden
+											? `Show ${p.name} events`
+											: `Hide ${p.name} events`}
+										aria-pressed={!isHidden}
+										onClick={() => onToggleProfileVisibility && onToggleProfileVisibility(p.id)}
+									>
+										<span className="sidebar-profile-chip-dot" style={{ background: profileHex(p) }} />
+										{p.name}
+									</button>
+								);
+							})
 						)}
 					</div>
 
 					{profileCreatorOpen && renderProfileCreator()}
 				</div>
 
-				{/* 1. Attach Notes Section */}
-				<div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+				{/* 2. Attach Notes Section. Each note is a plain title + link row so the drag
+				    handler can hand it straight to a day. The header's "+" is the way one gets
+				    in: either link a note that already lives in the vault, or write a new one
+				    into the planner folder. Same pair of actions the event pane offers.
+				    Presented between To Do and Calendar Profiles via flexbox `order`. */}
+				<div className="sidebar-section-notes" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
 					<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
 						<span style={{ fontSize: '14.5px', fontWeight: 600, color: 'var(--text-normal)', letterSpacing: '0.2px' }}>Attach Notes</span>
+						<button
+							type="button"
+							className={`profile-select-btn ${noteMenuOpen || isLinkingNote ? 'is-open' : ''}`}
+							title="Add a note"
+							onClick={() => {
+								setNoteMenuOpen(v => !v);
+								setIsLinkingNote(false);
+								setNoteSearchInput('');
+							}}
+						>
+							+
+						</button>
 					</div>
+
+					{noteMenuOpen && !isLinkingNote && (
+						<div className="attachment-actions" style={{ padding: '0 4px' }}>
+							<button
+								type="button"
+								onClick={() => setIsLinkingNote(true)}
+								title="Link a note that is already in the vault"
+								style={SIDEBAR_NOTE_BTN_STYLE}
+							>
+								<span style={{ fontSize: '13px', lineHeight: 1 }}>+</span>
+								<span>Link note (@)</span>
+							</button>
+							<button
+								type="button"
+								onClick={openSidebarNoteComposer}
+								title={`Write a new note into ${PLANNER_NOTES_FOLDER}`}
+								style={SIDEBAR_NOTE_BTN_STYLE}
+							>
+								<span style={{ fontSize: '13px', lineHeight: 1 }}>+</span>
+								<span>Create note</span>
+							</button>
+						</div>
+					)}
+
+					{isLinkingNote && (
+						<div style={{ position: 'relative', width: '100%', padding: '0 4px' }}>
+							<input
+								autoFocus
+								type="text"
+								placeholder="Search note or type @..."
+								value={noteSearchInput}
+								onChange={(e) => setNoteSearchInput(e.target.value)}
+								onKeyDown={(e) => {
+									if (e.key === 'ArrowDown' && noteSuggestions.length > 0) {
+										e.preventDefault();
+										setNoteSelectedIdx(prev => (prev + 1) % noteSuggestions.length);
+									} else if (e.key === 'ArrowUp' && noteSuggestions.length > 0) {
+										e.preventDefault();
+										setNoteSelectedIdx(prev => (prev - 1 + noteSuggestions.length) % noteSuggestions.length);
+									} else if (e.key === 'Enter') {
+										e.preventDefault();
+										if (noteSuggestions.length > 0) {
+											handleAttachVaultNote(noteSuggestions[noteSelectedIdx] || noteSuggestions[0]);
+										}
+									} else if (e.key === 'Escape') {
+										e.preventDefault();
+										setIsLinkingNote(false);
+										setNoteSearchInput('');
+									}
+								}}
+								onBlur={() => {
+									setTimeout(() => {
+										if (!isSelectingNoteRef.current) {
+											setIsLinkingNote(false);
+											setNoteMenuOpen(false);
+										}
+									}, 120);
+								}}
+								style={{
+									width: '100%',
+									fontSize: '12px',
+									padding: '5px 8px',
+									borderRadius: '5px',
+									background: 'var(--background-modifier-form-field)',
+									border: '1px solid var(--background-modifier-border)',
+									outline: 'none',
+									boxShadow: 'none',
+									color: 'var(--text-normal)',
+									boxSizing: 'border-box'
+								}}
+							/>
+							{noteSuggestions.length > 0 && (
+								<div className="note-mention-popover">
+									<div className="note-mention-header">Vault Notes</div>
+									{noteSuggestions.map((note, idx) => (
+										<div
+											key={note.path}
+											className={`note-mention-item ${idx === noteSelectedIdx ? 'is-selected' : ''}`}
+											onMouseDown={(e) => {
+												e.preventDefault();
+												handleAttachVaultNote(note);
+											}}
+											onMouseEnter={() => setNoteSelectedIdx(idx)}
+										>
+											<span className="note-mention-title">{note.basename}</span>
+										</div>
+									))}
+								</div>
+							)}
+						</div>
+					)}
 
 					<div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
 						{notebookEvents.filter(t => !t.title.trim().startsWith('{')).sort((a, b) => {
@@ -1080,8 +1389,9 @@ export const Sidebar = ({ currentDate, setCurrentDate, plugin, timers, setTimers
 					</div>
 				</div>
 
-				{/* 2. To Do Section */}
-				<div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+				{/* 1. To Do Section. Presented first in the pane, directly under the mini
+				    calendar, via flexbox `order` (see styles.css). */}
+				<div className="sidebar-section-todos" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
 					<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
 						<span
 							style={{
@@ -1357,6 +1667,96 @@ export const Sidebar = ({ currentDate, setCurrentDate, plugin, timers, setTimers
 						})}
 					</div>
 				</div>
+
+				{/* 4. Daily Note To-Do — month view only. The To Do list above is bound to
+						  the day the calendar is on; this one pools every daily note across the
+						  whole month on screen. It fills in only after the month has been at
+						  rest for a beat (debounced in the effect above), so wheeling through
+						  months never reads the vault on every step. Strictly read-only: the
+						  boxes here are calendar state and never touch the note file. */}
+				{mode === 'month' && (
+					<div className="sidebar-monthly-todos" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+						<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
+							<span style={{ fontSize: '14.5px', fontWeight: 600, color: 'var(--text-normal)', letterSpacing: '0.2px' }}>Daily Note To-Do</span>
+							<span className="sidebar-monthly-month-label">{format(currentDate, 'MMMM yyyy')}</span>
+						</div>
+
+						{monthlyTodosLoading && monthlyDailyTodos.length === 0 ? (
+							<span className="sidebar-monthly-status">Loading this month’s daily notes…</span>
+						) : monthlyDailyTodos.length === 0 ? (
+							<span className="sidebar-monthly-status">No daily-note to-dos this month</span>
+						) : (
+							<div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+								{monthlyGroups.map(group => (
+									<div key={group.key} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+										<div className="sidebar-monthly-day-label">{format(group.date, 'EEE, MMM d')}</div>
+										{group.items.map(todo => {
+											const rowAccent = accentColorForId(todo.id);
+											const cleanTitle = todo.title.replace(/\[\[|\]\]/g, '');
+											return (
+												<div
+													key={todo.id}
+													className="sidebar-todo-row"
+													style={{
+														padding: '5px 8px',
+														borderRadius: '6px',
+														display: 'flex',
+														alignItems: 'flex-start',
+														gap: '10px',
+														width: '100%',
+														minWidth: 0,
+														boxSizing: 'border-box'
+													}}
+												>
+													<div
+														onClick={(e) => { e.stopPropagation(); handleToggleMonthlyTodo(todo.id); }}
+														style={{
+															width: '18px',
+															height: '18px',
+															borderRadius: '50%',
+															border: todo.completed ? '1.5px solid transparent' : '1.5px solid var(--text-muted)',
+															backgroundColor: todo.completed ? rowAccent : 'transparent',
+															flexShrink: 0,
+															cursor: 'pointer',
+															display: 'flex',
+															alignItems: 'center',
+															justifyContent: 'center',
+															opacity: todo.completed ? 0.9 : 0.8,
+															transition: 'all 0.15s ease',
+															marginTop: '1px'
+														}}
+														title={todo.completed ? 'Mark incomplete' : 'Complete'}
+													></div>
+													<span
+														className="sidebar-monthly-todo-title"
+														style={{
+															fontSize: '13px',
+															fontWeight: 400,
+															color: todo.completed ? 'var(--text-muted)' : 'var(--text-normal)',
+															textDecoration: todo.completed ? 'line-through' : 'none',
+															textDecorationColor: rowAccent,
+															textDecorationThickness: '1.5px',
+															opacity: todo.completed ? 0.6 : 1,
+															lineHeight: 1.35,
+															flex: 1,
+															minWidth: 0,
+															wordBreak: 'break-word',
+															whiteSpace: 'normal'
+														}}
+														title={cleanTitle}
+													>
+														{cleanTitle}
+													</span>
+												</div>
+											);
+										})}
+									</div>
+								))}
+							</div>
+						)}
+					</div>
+				)}
+
 			</div>
 		</div>
 	);

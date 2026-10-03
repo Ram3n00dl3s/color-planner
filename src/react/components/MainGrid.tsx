@@ -1,16 +1,18 @@
 import { createPortal } from 'react-dom';
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { format, addDays, isSameDay } from 'date-fns';
+import { format, addDays, addMonths, differenceInCalendarDays, isSameDay } from 'date-fns';
 import { DndContext, DragEndEvent, DragStartEvent, DragMoveEvent, CollisionDetection, pointerWithin, rectIntersection, useDraggable, useDroppable, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { CalendarEvent, EventTodo, TimerTile, CalendarProfile } from '../../types';
 import { extractObsidianDoc } from '../../utils/dragDrop';
 import { getNowInTimeZone } from '../../utils/timezone';
 import { LocationMiniMap } from './LocationMiniMap';
+import { NoteIcon } from './NoteIcon';
 import { ShapesBackdrop } from './ShapesBackdrop';
 import { DuplicateDropCalendar } from './DuplicateDropCalendar';
 import { CalendarSettingsMenu } from './CalendarSettingsMenu';
-import { resolveAccentHex, DEFAULT_ACCENT_HEX } from '../../utils/colors';
+import { MonthView } from './MonthView';
+import { resolveAccentHex, DEFAULT_ACCENT_HEX, toneDownAccent } from '../../utils/colors';
 import {
 	clampDoodleShapeCount,
 	clampDoodleShapeSize,
@@ -38,6 +40,18 @@ const ALL_PALETTE_COLORS = [
 	'banana', 'apricot', 'peach', 'salmon', 'rose',
 	'blush', 'magenta', 'orchid', 'violet', 'periwinkle'
 ];
+
+/**
+	* Fixed size (px) of the corner "note" affordance on an event tile. It never
+	* scales with the tile — the icon looks identical on every tile it appears on.
+	*/
+const NOTE_ICON_SIZE = 17;
+
+/**
+	* The note affordance is dropped entirely on tiles shorter than this, where it
+	* would crowd the title/time. It is never shrunk to fit — it is simply omitted.
+	*/
+const NOTE_ICON_MIN_TILE_HEIGHT = 40;
 
 /** The swatch colour of a calendar profile (a palette name or a raw hex). */
 const profileHex = (profile?: CalendarProfile | null): string =>
@@ -74,8 +88,10 @@ const EventBlock = ({
 	collapsed,
 	revealDelay = 0,
 	justBegun,
+	revealActive,
 	showDetails = true,
-	calendarProfiles = []
+	calendarProfiles = [],
+	onResizeIndicator
 }: {
 	event: CalendarEvent,
 	onResizeEnd: (id: string, newStart: Date, newEnd: Date) => void,
@@ -97,12 +113,26 @@ const EventBlock = ({
 	revealDelay?: number,
 	justBegun?: boolean,
 	/**
+	 * True for a short beat after the grid changes shape (month ↔ days, or the
+	 * number of days in view). One-shot: every tile then plays the same gentle
+	 * drop-and-fade entrance a day-header click already uses, staggered into a
+	 * soft wave by `revealDelay`.
+	 */
+	revealActive?: boolean,
+	/**
 	 * When false the tile renders only its title and time: no to-do items, no
 	 * description lines. Driven by the "Show details on tiles" setting.
 	 */
 	showDetails?: boolean,
 	/** Profiles offered in the tile's right-click menu. */
-	calendarProfiles?: CalendarProfile[]
+	calendarProfiles?: CalendarProfile[],
+	/**
+	 * While an edge-resize handle is dragged, reports the px offset (within the
+	 * 24-hour scale) of the edge being moved so the grid can place its temporary
+	 * timeline marker there: the tile's bottom for the end handle, its top for the
+	 * start handle. `null` releases the marker back to the current time.
+	 */
+	onResizeIndicator?: (topPx: number | null) => void
 }) => {
 	const isDraft = event.id === 'draft';
 
@@ -120,10 +150,12 @@ const EventBlock = ({
 	const [resizeEndOffset, setResizeEndOffset] = useState<number>(0);
 	const [isDocDragOver, setIsDocDragOver] = useState(false);
 	const [isHovered, setIsHovered] = useState(false);
-	const [showDeleteBubble, setShowDeleteBubble] = useState(false);
-	const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	const [showContextMenu, setShowContextMenu] = useState(false);
+	// One-shot acknowledgement for a right-click: the tile gives the tiniest press
+	// before the context menu appears. Toggled false → next frame true so repeated
+	// right-clicks replay it.
+	const [isContextPulsing, setIsContextPulsing] = useState(false);
 	const [menuPos, setMenuPos] = useState<{ x: number; y: number; flippedX?: boolean; flippedY?: boolean }>({ x: 0, y: 0 });
 	const [showColorPicker, setShowColorPicker] = useState(false);
 	// Name of the calendar swatch under the pointer, shown in place of a
@@ -168,6 +200,12 @@ const EventBlock = ({
 		setMenuPos({ x: menuX, y: menuY, flippedX, flippedY });
 		setShowColorPicker(false);
 		setShowContextMenu(true);
+
+		// Acknowledge the click with the smallest possible motion. Dropping the class
+		// for one frame and re-adding it on the next restarts the keyframe, so a rapid
+		// second right-click still plays the pulse afresh instead of sitting still.
+		setIsContextPulsing(false);
+		requestAnimationFrame(() => setIsContextPulsing(true));
 	};
 
 	useEffect(() => {
@@ -205,40 +243,22 @@ const EventBlock = ({
 		};
 	}, [showContextMenu, event, onDuplicateEvent, onDelete]);
 
+	// Plain hover only lifts the tile (see the z-index below); it no longer reveals
+	// any floating control. Deleting is done through the right-click context menu.
 	const handleMouseEnter = () => {
 		if (isDraft || isStationaryClone || showContextMenu) return;
 		setIsHovered(true);
-		if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-		hoverTimerRef.current = setTimeout(() => {
-			setShowDeleteBubble(true);
-		}, 350);
 	};
 
 	const handleMouseLeave = () => {
 		setIsHovered(false);
-		if (hoverTimerRef.current) {
-			clearTimeout(hoverTimerRef.current);
-			hoverTimerRef.current = null;
-		}
-		setShowDeleteBubble(false);
 	};
 
 	useEffect(() => {
 		if (transform || isDuplicating) {
-			setShowDeleteBubble(false);
 			setShowContextMenu(false);
-			if (hoverTimerRef.current) {
-				clearTimeout(hoverTimerRef.current);
-				hoverTimerRef.current = null;
-			}
 		}
 	}, [transform, isDuplicating]);
-
-	useEffect(() => {
-		return () => {
-			if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-		};
-	}, []);
 
 	const startY = useRef<number>(0);
 
@@ -316,6 +336,9 @@ const EventBlock = ({
 		e.stopPropagation();
 		setIsResizingBottom(true);
 		startY.current = e.clientY;
+		// Mark the edge about to move — the tile's bottom — the instant the handle is
+		// grabbed, so the marker is already on the edge before the first pointer move.
+		onResizeIndicator?.((event.endTime.getHours() + event.endTime.getMinutes() / 60) * pxPerHour);
 		window.addEventListener('pointermove', handleBottomResizeMove);
 		window.addEventListener('pointerup', handleBottomResizeEnd);
 	};
@@ -323,13 +346,26 @@ const EventBlock = ({
 	const handleBottomResizeMove = (e: PointerEvent) => {
 		const delta = e.clientY - startY.current;
 		const maxAllowedDelta = (24 * pxPerHour - 8) - (baseTop + baseHeight - 8);
-		setResizeEndOffset(Math.min(maxAllowedDelta, Math.max(delta, minHeight - baseHeight)));
+		const appliedDelta = Math.min(maxAllowedDelta, Math.max(delta, minHeight - baseHeight));
+		setResizeEndOffset(appliedDelta);
+		// The marker rides the bottom edge, snapped exactly as the tile's own end is,
+		// so the landing time can be read straight off the time scale.
+		const newEndHours = (baseHeight + appliedDelta) / pxPerHour;
+		let markedEnd = snapTo15(new Date(event.startTime.getTime() + newEndHours * 60 * 60 * 1000));
+		const markedDayEnd = new Date(event.startTime);
+		markedDayEnd.setHours(23, 59, 0, 0);
+		if (markedEnd.getTime() >= markedDayEnd.getTime()) markedEnd = markedDayEnd;
+		if (markedEnd.getTime() - event.startTime.getTime() < minDurationMs) {
+			markedEnd = new Date(event.startTime.getTime() + 30 * 60 * 1000);
+		}
+		onResizeIndicator?.((markedEnd.getHours() + markedEnd.getMinutes() / 60) * pxPerHour);
 	};
 
 	const handleBottomResizeEnd = (e: PointerEvent) => {
 		setIsResizingBottom(false);
 		window.removeEventListener('pointermove', handleBottomResizeMove);
 		window.removeEventListener('pointerup', handleBottomResizeEnd);
+		onResizeIndicator?.(null);
 
 		const deltaY = e.clientY - startY.current;
 		const maxAllowedDelta = (24 * pxPerHour - 8) - (baseTop + baseHeight - 8);
@@ -360,6 +396,8 @@ const EventBlock = ({
 		e.stopPropagation();
 		setIsResizingTop(true);
 		startY.current = e.clientY;
+		// Mirror of the bottom handle: the marker is placed on the tile's top edge.
+		onResizeIndicator?.((event.startTime.getHours() + event.startTime.getMinutes() / 60) * pxPerHour);
 		window.addEventListener('pointermove', handleTopResizeMove);
 		window.addEventListener('pointerup', handleTopResizeEnd);
 	};
@@ -368,13 +406,25 @@ const EventBlock = ({
 		const delta = e.clientY - startY.current;
 		const maxDelta = baseHeight - minHeight;
 		const minAllowedDelta = -baseTop;
-		setResizeStartOffset(Math.max(minAllowedDelta, Math.min(delta, maxDelta)));
+		const appliedDelta = Math.max(minAllowedDelta, Math.min(delta, maxDelta));
+		setResizeStartOffset(appliedDelta);
+		// The marker rides the top edge, snapped exactly as the tile's own start is.
+		const newStartHoursDelta = appliedDelta / pxPerHour;
+		let markedStart = snapTo15(new Date(event.startTime.getTime() + newStartHoursDelta * 60 * 60 * 1000));
+		const markedDayStart = new Date(event.startTime);
+		markedDayStart.setHours(0, 0, 0, 0);
+		if (markedStart.getTime() < markedDayStart.getTime()) markedStart = markedDayStart;
+		if (event.endTime.getTime() - markedStart.getTime() < minDurationMs) {
+			markedStart = new Date(event.endTime.getTime() - minDurationMs);
+		}
+		onResizeIndicator?.((markedStart.getHours() + markedStart.getMinutes() / 60) * pxPerHour);
 	};
 
 	const handleTopResizeEnd = (e: PointerEvent) => {
 		setIsResizingTop(false);
 		window.removeEventListener('pointermove', handleTopResizeMove);
 		window.removeEventListener('pointerup', handleTopResizeEnd);
+		onResizeIndicator?.(null);
 
 		const deltaY = e.clientY - startY.current;
 		const maxDelta = baseHeight - minHeight;
@@ -546,21 +596,55 @@ const EventBlock = ({
 
 	// Location affordance shown whenever the event carries a location: a neutral
 	// monochrome "map + pin" icon (never a picture, never a framed box). It is
-	// purely decorative — it never represents the real address. It sits in the
-	// bottom-right corner and a matching right-hand gutter is reserved on the
-	// tile so text never runs underneath it (i.e. it never disturbs the title).
+	// purely decorative — it never represents the real address.
 	const hasLocation = Boolean(event.location && event.location.trim());
+	// Note affordance shown whenever the event has one or more linked notes
+	// (linked from the event details, or created there). Same neutral treatment.
+	const hasNote = Boolean(event.linkedNotes && event.linkedNotes.some(n => Boolean(n && n.trim())));
 	const locationMapSize = currentHeight >= 110 ? 30 : currentHeight >= 76 ? 24 : currentHeight >= 54 ? 19 : 14;
 	const smallLocationMapSize = currentHeight >= 24 ? 13 : 0;
-	const locationRightPad = hasLocation && !isSmallTile ? locationMapSize + 10 : 0;
+	// The note affordance has a FIXED size (see NOTE_ICON_SIZE) so it looks the
+	// same on every tile. On tiles too short to hold it alongside the title/time
+	// it is omitted entirely rather than shrunk.
+	const showNoteIcon = hasNote && !isSmallTile && currentHeight >= NOTE_ICON_MIN_TILE_HEIGHT;
+	// The note and map icons share the bottom-right corner and are stacked in a
+	// column (note above map) so they never overlap one another. Because they are
+	// stacked, only the widest of the two needs to be reserved on the tile's
+	// right-hand gutter — text never runs underneath either icon.
+	const cornerIconSize = hasLocation && showNoteIcon
+		? Math.max(locationMapSize, NOTE_ICON_SIZE)
+		: showNoteIcon
+			? NOTE_ICON_SIZE
+			: locationMapSize;
+	const locationRightPad = (hasLocation || showNoteIcon) && !isSmallTile ? cornerIconSize + 10 : 0;
 	const isPast = event.endTime.getTime() < Date.now();
+
+	// The view-shape reveal reuses the gentle entrance a day-header click already
+	// plays when it drops a column's tiles back in (`tile-reveal` keyframes: a
+	// 34px fall, a whisper of scale and a soft fade). It is suppressed while the
+	// tile is in flight, is a stationary duplicate clone, or sits in a collapsed
+	// column, so it can never fight the drag layer or the collapse motion — both of
+	// which own the very same independent properties.
+	const isRevealing = Boolean(revealActive && !justBegun && !isStationaryClone && !collapsed && !isCurrentlyMoving);
+
+	// The opacity this tile settles to at rest, mirroring the stylesheet: past
+	// events dim to 0.65, all-day tiles sit at 0.85, and a selected past event
+	// lifts to 0.9. The reveal keyframes fade *to* this value (handed over as a
+	// custom property) rather than to a flat 1, so a past tile no longer animates
+	// up to full opacity and then snaps back down the instant it finishes.
+	const restOpacity = event.isAllDay
+		? 0.85
+		: isPast
+			? (isSelected && !isStationaryClone ? 0.9 : 0.65)
+			: 1;
 
 	return (
 		<div
 			ref={isStationaryClone ? undefined : setNodeRef}
-			className={`placeholder-event event-${event.colorTheme} ${isSelected && !isStationaryClone ? 'selected' : ''} ${hasOverlap ? 'has-overlap' : ''} ${isDocDragOver ? 'doc-drop-target' : ''} ${isSmallTile ? 'small-tile' : ''} ${isCurrentlyMoving ? 'is-dragging-tile' : ''} ${isPast ? 'is-past-event' : ''} ${event.isAllDay ? 'is-allday-event' : ''} ${justBegun ? 'tile-begun' : ''}`}
+			className={`placeholder-event event-${event.colorTheme} ${isSelected && !isStationaryClone ? 'selected' : ''} ${hasOverlap ? 'has-overlap' : ''} ${isDocDragOver ? 'doc-drop-target' : ''} ${isSmallTile ? 'small-tile' : ''} ${isCurrentlyMoving ? 'is-dragging-tile' : ''} ${isPast ? 'is-past-event' : ''} ${event.isAllDay ? 'is-allday-event' : ''} ${justBegun ? 'tile-begun' : ''} ${isRevealing ? 'tile-reveal' : ''} ${isContextPulsing ? 'context-pulse' : ''}`}
 			style={{
 				...style,
+				['--sleek-tile-rest-opacity' as any]: restOpacity,
 				width: tileWidth,
 				left: tileLeft,
 				position: 'absolute',
@@ -866,11 +950,11 @@ const EventBlock = ({
 							    jumps as the pointer moves across. The group carries no bottom padding
 							    of its own, so the divider below lands right under the caption with
 							    nothing between them but that reserved line. */}
-							<div style={{ fontSize: '12px', lineHeight: '16px', marginTop: '6px', color: 'var(--text-faint, rgba(255, 255, 255, 0.42))' }}>
+							<div style={{ fontSize: '12px', lineHeight: '16px', marginTop: '6px', color: 'var(--text-muted, rgba(255, 255, 255, 0.6))' }}>
 								Profile
 							</div>
 							<div
-								style={{ width: '100%', height: '16px', lineHeight: '16px', textAlign: 'left', fontSize: '12px', color: 'var(--text-faint, rgba(255, 255, 255, 0.42))', pointerEvents: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+								style={{ width: '100%', height: '16px', lineHeight: '16px', textAlign: 'left', fontSize: '12px', color: 'var(--text-muted, rgba(255, 255, 255, 0.6))', pointerEvents: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
 							>
 								{hoveredProfileName || ''}
 							</div>
@@ -972,14 +1056,14 @@ const EventBlock = ({
 								borderRadius: '6px',
 								cursor: 'pointer',
 								fontSize: '13px',
-								color: '#ff5252',
+								color: 'var(--text-normal, #e2e8f0)',
 								transition: 'background-color 0.1s ease'
 							}}
-							onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.12)'; }}
+							onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)'; }}
 							onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
 						>
 							<div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-								<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ff5252" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+								<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
 									<polyline points="3 6 5 6 21 6"></polyline>
 									<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
 								</svg>
@@ -991,52 +1075,6 @@ const EventBlock = ({
 				</div>, document.body
 			)}
 
-			{showDeleteBubble && !showContextMenu && !isDraft && !isStationaryClone && !transform && !isDuplicating && onDelete && (
-				<button
-					className="event-delete-bubble"
-					title="Delete event"
-					onPointerDown={(e) => e.stopPropagation()}
-					onMouseDown={(e) => e.stopPropagation()}
-					onClick={(e) => {
-						e.stopPropagation();
-						e.preventDefault();
-						onDelete(event.id);
-					}}
-					style={{
-						position: 'absolute',
-						top: isSmallTile ? '-10px' : '-12px',
-						right: isSmallTile ? '-10px' : '-12px',
-						width: '34px',
-						height: '34px',
-						background: 'transparent',
-						border: 'none',
-						color: 'var(--text-muted, rgba(255, 255, 255, 0.6))',
-						display: 'flex',
-						alignItems: 'center',
-						justifyContent: 'center',
-						cursor: 'pointer',
-						padding: 0,
-						zIndex: 45,
-						boxShadow: 'none',
-						transition: 'color 0.15s ease, transform 0.15s ease',
-						lineHeight: 1
-					}}
-					onMouseEnter={(e) => {
-						e.currentTarget.style.color = 'var(--text-normal, #ffffff)';
-						e.currentTarget.style.transform = 'scale(1.08)';
-					}}
-					onMouseLeave={(e) => {
-						e.currentTarget.style.color = 'var(--text-muted, rgba(255, 255, 255, 0.6))';
-						e.currentTarget.style.transform = 'none';
-					}}
-				>
-					<svg width="31" height="31" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-						<circle cx="12" cy="12" r="9.5" />
-						<line x1="15" y1="9" x2="9" y2="15" />
-						<line x1="9" y1="9" x2="15" y2="15" />
-					</svg>
-				</button>
-			)}
 			{!isStationaryClone && (
 				<div
 					className="resize-handle top"
@@ -1044,9 +1082,9 @@ const EventBlock = ({
 					style={{ position: 'absolute', top: 0, left: 0, right: 0, height: isSmallTile ? '5px' : '8px', cursor: 'ns-resize', zIndex: 10 }}
 				/>
 			)}
-			{hasLocation && !isSmallTile && (
+			{(hasLocation || showNoteIcon) && !isSmallTile && (
 				<div
-					className="event-location-map"
+					className="event-tile-icons"
 					style={{
 						position: 'absolute',
 						bottom: '6px',
@@ -1054,13 +1092,32 @@ const EventBlock = ({
 						zIndex: 20,
 						lineHeight: 0,
 						display: 'flex',
+						flexDirection: 'column',
 						alignItems: 'center',
 						justifyContent: 'center',
+						gap: '4px',
 						opacity: 1,
 						pointerEvents: 'none'
 					}}
 				>
-					<LocationMiniMap size={locationMapSize} />
+					{/* The note sits above the map so the two corner affordances
+					    never overlap one another when an event carries both. */}
+					{showNoteIcon && (
+						<div
+							className="event-note-icon"
+							style={{ lineHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+						>
+							<NoteIcon size={NOTE_ICON_SIZE} />
+						</div>
+					)}
+					{hasLocation && (
+						<div
+							className="event-location-map"
+							style={{ lineHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+						>
+							<LocationMiniMap size={locationMapSize} />
+						</div>
+					)}
 				</div>
 			)}
 			<div
@@ -1267,8 +1324,10 @@ const DayColumn = ({
 	draggingEventTimes,
 	collapsed,
 	begunEventIds,
+	revealActive,
 	showTileDetails,
-	calendarProfiles
+	calendarProfiles,
+	onResizeIndicator
 }: {
 	day: Date,
 	events: CalendarEvent[],
@@ -1287,10 +1346,14 @@ const DayColumn = ({
 	draggingEventTimes?: { id: string; startTime: Date; endTime: Date } | null,
 	collapsed?: boolean,
 	begunEventIds?: Record<string, boolean>,
+	/** Forwarded to each tile: true for a beat after the grid changes shape. */
+	revealActive?: boolean,
 	/** Forwarded to each tile: false hides the to-do/description lines. */
 	showTileDetails?: boolean,
 	/** Forwarded to each tile for its right-click profile picker. */
-	calendarProfiles?: CalendarProfile[]
+	calendarProfiles?: CalendarProfile[],
+	/** Forwarded to each tile so an edge-resize can place the grid's edge marker. */
+	onResizeIndicator?: (topPx: number | null) => void
 }) => {
 	const { setNodeRef, isOver } = useDroppable({
 		id: day.toISOString(),
@@ -1305,64 +1368,102 @@ const DayColumn = ({
 		);
 	};
 
-	// Group events on this day into connected clusters of overlapping events
-	const eventLayoutMap = new Map<string, { hasOverlap: boolean; overlapIndex: number; overlapTotal: number }>();
-	const visited = new Set<string>();
+	// The layout a tile gets when it shares no stack: full width, flush left.
+	const LONE_TILE_LAYOUT = { hasOverlap: false, overlapIndex: 0, overlapTotal: 1 };
 
-	events.forEach(event => {
-		if (visited.has(event.id)) return;
+	// Group events on this day into connected clusters of overlapping events. Kept as a
+	// helper because the pass has to be run twice while a tile is held (see below).
+	const computeEventLayout = (list: CalendarEvent[]) => {
+		const layoutMap = new Map<string, { hasOverlap: boolean; overlapIndex: number; overlapTotal: number }>();
+		// A day holding fewer than two events cannot contain an overlap at all, so the
+		// O(n²) sweep is skipped outright. This matters while a drag is live, where the
+		// pass runs a second time on every snapped step.
+		if (list.length < 2) return layoutMap;
+		const visited = new Set<string>();
 
-		const cluster: CalendarEvent[] = [];
-		const queue = [event];
-		visited.add(event.id);
+		list.forEach(event => {
+			if (visited.has(event.id)) return;
 
-		while (queue.length > 0) {
-			const curr = queue.shift()!;
-			cluster.push(curr);
+			const cluster: CalendarEvent[] = [];
+			const queue = [event];
+			visited.add(event.id);
 
-			events.forEach(candidate => {
-				if (!visited.has(candidate.id)) {
-					const overlaps = (
-						candidate.startTime.getTime() < curr.endTime.getTime() &&
-						candidate.endTime.getTime() > curr.startTime.getTime()
-					);
-					if (overlaps) {
-						visited.add(candidate.id);
-						queue.push(candidate);
+			while (queue.length > 0) {
+				const curr = queue.shift()!;
+				cluster.push(curr);
+
+				list.forEach(candidate => {
+					if (!visited.has(candidate.id)) {
+						const overlaps = (
+							candidate.startTime.getTime() < curr.endTime.getTime() &&
+							candidate.endTime.getTime() > curr.startTime.getTime()
+						);
+						if (overlaps) {
+							visited.add(candidate.id);
+							queue.push(candidate);
+						}
 					}
-				}
-			});
-		}
+				});
+			}
 
-		// Sort cluster chronologically: earliest start time is bottom-most (index 0)
-		cluster.sort((a, b) => {
-			const diff = a.startTime.getTime() - b.startTime.getTime();
-			if (diff !== 0) return diff;
-			return a.endTime.getTime() - b.endTime.getTime();
+			// Sort cluster chronologically: earliest start time is bottom-most (index 0)
+			cluster.sort((a, b) => {
+				const diff = a.startTime.getTime() - b.startTime.getTime();
+				if (diff !== 0) return diff;
+				return a.endTime.getTime() - b.endTime.getTime();
+			});
+
+			const total = cluster.length;
+			const hasOverlap = total > 1;
+			cluster.forEach((ev, idx) => {
+				layoutMap.set(ev.id, {
+					hasOverlap,
+					overlapIndex: idx,
+					overlapTotal: total
+				});
+			});
 		});
 
-		const total = cluster.length;
-		const hasOverlap = total > 1;
-		cluster.forEach((ev, idx) => {
-			eventLayoutMap.set(ev.id, {
-				hasOverlap,
-				overlapIndex: idx,
-				overlapTotal: total
-			});
-		});
-	});
+		return layoutMap;
+	};
+
+	const eventLayoutMap = computeEventLayout(events);
+	// The pass the resting tiles are actually laid out from: the tile under the pointer is
+	// left out of it entirely. It is that tile which must not disturb the day it floats
+	// over, and this is what stops it — an edge-hold page step re-homes it onto the day it
+	// would land on, and if it joined that day's stack it would shove those tiles sideways
+	// and repaint their shadows, which is exactly the "reacting" the resting tiles did.
+	const restingLayoutMap = activeDragId
+		? computeEventLayout(events.filter(e => e.id !== activeDragId))
+		: eventLayoutMap;
+
+	// Lifts the column that carries the tile in flight — dragged, or re-homed onto its
+	// landing day by an edge-hold page step. Every day column is its own stacking
+	// context, so without this a neighbouring column would paint straight over the tile
+	// the moment the drag translates it across a column boundary.
+	const holdsFlight = Boolean(activeDragId && events.some(e => e.id === activeDragId));
 
 	return (
 		<div
 			ref={setNodeRef}
-			className={`day-column${collapsed ? ' day-column--collapsed' : ''}`}
+			className={`day-column${collapsed ? ' day-column--collapsed' : ''}${holdsFlight ? ' day-column--flight' : ''}`}
 			style={{ flex: 1, height: '100%', minHeight: `${24 * pxPerHour}px`, position: 'relative' }}
 			onPointerDown={(e) => onBackgroundPointerDown(e, day)}
 			onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
 			onDrop={(e) => onNativeDrop(e, day)}
 		>
 			{events.map((event, eventIdx) => {
-				const layout = eventLayoutMap.get(event.id) || { hasOverlap: false, overlapIndex: 0, overlapTotal: 1 };
+				const isThisEventInFlight = event.id === activeDragId;
+				// The tile in flight is always drawn as a lone tile, never as a member of a
+				// stack: its geometry is then settled for the whole hold, so nothing about it
+				// can shift or flicker as the pointer travels across the tiles beneath it.
+				const restingLayout = isThisEventInFlight
+					? LONE_TILE_LAYOUT
+					: (restingLayoutMap.get(event.id) || LONE_TILE_LAYOUT);
+				// The duplicate gesture leaves a motionless copy of the original behind, and
+				// that copy has to keep the stack exactly as the user last saw it — so it
+				// reads the pass that still counts the tile being carried away.
+				const stackedLayout = eventLayoutMap.get(event.id) || LONE_TILE_LAYOUT;
 				const isThisEventActiveAndDuplicating = Boolean(isDuplicatingNow && event.id === activeDragId);
 				// Small per-tile step so collapsing/revealing reads as a soft wave rather
 				// than every tile snapping at once. Capped so a busy day never waits long.
@@ -1379,13 +1480,14 @@ const DayColumn = ({
 								isSelected={false}
 								onClick={() => { }}
 								pxPerHour={pxPerHour}
-								hasOverlap={layout.hasOverlap}
-								overlapIndex={layout.overlapIndex}
-								overlapTotal={layout.overlapTotal}
+								hasOverlap={stackedLayout.hasOverlap}
+								overlapIndex={stackedLayout.overlapIndex}
+								overlapTotal={stackedLayout.overlapTotal}
 								isStationaryClone={true}
 								collapsed={collapsed}
 								showDetails={showTileDetails !== false}
 								calendarProfiles={calendarProfiles}
+								onResizeIndicator={onResizeIndicator}
 							/>
 						)}
 
@@ -1396,9 +1498,9 @@ const DayColumn = ({
 							isSelected={event.id === selectedEventId}
 							onClick={() => onEventClick(event)}
 							pxPerHour={pxPerHour}
-							hasOverlap={layout.hasOverlap}
-							overlapIndex={layout.overlapIndex}
-							overlapTotal={layout.overlapTotal}
+							hasOverlap={restingLayout.hasOverlap}
+							overlapIndex={restingLayout.overlapIndex}
+							overlapTotal={restingLayout.overlapTotal}
 							onDropOnEvent={onDropOnEvent}
 							isDuplicating={isThisEventActiveAndDuplicating}
 							onDelete={onDeleteEvent}
@@ -1409,8 +1511,10 @@ const DayColumn = ({
 							collapsed={collapsed}
 							revealDelay={revealDelay}
 							justBegun={justBegun}
+							revealActive={revealActive}
 							showDetails={showTileDetails !== false}
 							calendarProfiles={calendarProfiles}
+							onResizeIndicator={onResizeIndicator}
 						/>
 					</React.Fragment>
 				);
@@ -1454,7 +1558,9 @@ export const MainGrid = ({
 	onEventDelete,
 	onNavigate,
 	onTodoDrop,
-	onSelectDate
+	onSelectDate,
+	onViewModeChange,
+	hiddenProfileIds
 }: {
 	events: CalendarEvent[],
 	setEvents: React.Dispatch<React.SetStateAction<CalendarEvent[]>>,
@@ -1477,9 +1583,35 @@ export const MainGrid = ({
 	 * Moves the grid's visible window onto the given day. The window always begins
 	 * at `currentDate`, so selecting a day makes it the grid's first column.
 	 */
-	onSelectDate?: (date: Date) => void
+	onSelectDate?: (date: Date) => void,
+	/**
+	 * Reports which shape the grid is showing. The host uses it to park the right
+	 * pane on its default view for as long as the full month is on screen.
+	 */
+	onViewModeChange?: (mode: 'days' | 'month') => void,
+	/**
+	 * Profile ids the user has switched off from the default right pane. Events
+	 * carrying one of these ids are simply not rendered — the underlying event
+	 * list is never touched, so flipping a profile back on restores its tiles.
+	 */
+	hiddenProfileIds?: Set<string>
 }) => {
 	const [daysToView, setDaysToView] = useState<number>(plugin?.settings?.daysToView || 5);
+	// Which shape the calendar is showing: the sliding day columns ('days') or the
+	// full-month grid ('month'). Persisted so the calendar reopens as the user left it.
+	const [viewMode, setViewMode] = useState<'days' | 'month'>(plugin?.settings?.viewMode === 'month' ? 'month' : 'days');
+	// Month-view day colours the user has set by hand, keyed by `YYYY-M-D`. A day
+	// with no entry falls back to the default colour or, when it carries events, to
+	// the colour the month already settled on (see [`MonthView`](src/react/components/MonthView.tsx)).
+	const [monthDayColors, setMonthDayColors] = useState<Record<string, string>>(
+		() => ({ ...(plugin?.settings?.monthDayColors || {}) })
+	);
+	// The automatic colours the month view has already settled on, keyed by `YYYY-M-D`.
+	// Decided once per month and then frozen here, so a day added later never repaints
+	// the days already on screen.
+	const [monthAutoDayColors, setMonthAutoDayColors] = useState<Record<string, string>>(
+		() => ({ ...(plugin?.settings?.monthAutoDayColors || {}) })
+	);
 	// In-calendar settings menu, opened from the gear in the grid header. It renders
 	// in a portal, so it is never clipped by the grid's scroll areas.
 	const [settingsOpen, setSettingsOpen] = useState(false);
@@ -1510,6 +1642,17 @@ export const MainGrid = ({
 			plugin.saveSettings();
 		}
 	}, [daysToView, plugin]);
+	useEffect(() => {
+		if (plugin && plugin.settings.viewMode !== viewMode) {
+			plugin.settings.viewMode = viewMode;
+			plugin.saveSettings();
+		}
+	}, [viewMode, plugin]);
+	// Keep the host told which shape is showing, so it can hold the right pane open
+	// on its default view while the month is up (and hand it back on the way out).
+	useEffect(() => {
+		if (onViewModeChange) onViewModeChange(viewMode);
+	}, [viewMode, onViewModeChange]);
 	const days = Array.from({ length: daysToView }).map((_, i) => addDays(startDate, i));
 	const [pxPerHour, setPxPerHour] = useState(60);
 	// Clicking a day header collapses that column: its tiles drift up out of view
@@ -1565,6 +1708,30 @@ export const MainGrid = ({
 		Object.values(begunTimersRef.current).forEach(t => clearTimeout(t));
 	}, []);
 
+	// Whenever the grid changes shape — month ↔ days, or the number of days in
+	// view — every tile that is (suddenly) on screen drops in together with the
+	// same springy entrance a freshly created tile gets. The flag is held for just
+	// over the length of the animation: the class is added once and then removed,
+	// which is exactly what lets the keyframes replay on the next shape change.
+	// The very first pass is skipped so opening the calendar never makes the whole
+	// grid jump. Purely presentational — no event, timer or note data is touched.
+	const [revealActive, setRevealActive] = useState(false);
+	const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const didInitRevealRef = useRef(false);
+	useEffect(() => {
+		if (!didInitRevealRef.current) {
+			didInitRevealRef.current = true;
+			return;
+		}
+		setRevealActive(true);
+		if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
+		// Covers the longest stagger (capped wave) plus the 0.62s drop itself.
+		revealTimerRef.current = setTimeout(() => setRevealActive(false), 1100);
+		return () => {
+			if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
+		};
+	}, [viewMode, daysToView]);
+
 	// Stepping with the ‹ / › arrows next to "Today" moves the window one day at a
 	// time. The day being moved TO gets a brief, neutral wash in its header so it
 	// is obvious which day the view just landed on. Purely presentational — theme
@@ -1577,6 +1744,95 @@ export const MainGrid = ({
 		if (jumpHighlightTimerRef.current) clearTimeout(jumpHighlightTimerRef.current);
 		jumpHighlightTimerRef.current = setTimeout(() => setJumpHighlightKey(null), 1200);
 		if (onNavigate) onNavigate(direction);
+	};
+
+	// Month view: the default palette colour for a quiet day tile, read live from
+	// settings so the settings menu recolours the month in place.
+	const monthDefaultColor: string = plugin?.settings?.monthViewDefaultColor || 'pastel-blue';
+
+	// The ‹ › arrows slide a whole month while in month mode and keep stepping one
+	// day at a time in the day view, so the arrows always mean "the same step as
+	// the view you're looking at".
+	const handleStepView = (direction: 'prev' | 'next') => {
+		if (viewMode === 'month') {
+			const target = addMonths(currentDate, direction === 'prev' ? -1 : 1);
+			if (onSelectDate) onSelectDate(target);
+			return;
+		}
+		handleStepDay(direction);
+	};
+
+	// The wheel over the month grid rolls the calendar the same way the arrows do — one
+	// notch a month, a longer flick through several, so a year is a single gesture. Each
+	// roll is measured from a ref rather than from the rendered date: a fast burst of
+	// notches arrives before React has re-rendered, and stepping from the ref means they
+	// stack up month after month instead of every one of them landing on the same
+	// neighbour. The ref is resynced whenever the date changes from anywhere else, so the
+	// arrows, "Today", and the wheel all stay in step.
+	const wheelMonthRef = useRef<Date>(currentDate);
+	useEffect(() => {
+		wheelMonthRef.current = currentDate;
+	}, [currentDate]);
+	const handleStepMonth = (months: number) => {
+		if (!months) return;
+		const target = addMonths(wheelMonthRef.current, months);
+		wheelMonthRef.current = target;
+		if (onSelectDate) onSelectDate(target);
+	};
+
+	// The wheel leaves the month track wherever it was let go — that freedom is the whole point of
+	// the rolling month — but the header's own controls are the places a reader asks for a clean
+	// month back. Clicking the month's name, or "Today", nudges this counter, and the month grid
+	// answers each nudge by easing the track onto the month being shown. The month itself does not
+	// change, so the panes are never relabelled: only the leftover fraction of a month is given up.
+	const [monthSnapSignal, setMonthSnapSignal] = useState(0);
+	const requestMonthSnap = () => setMonthSnapSignal(n => n + 1);
+
+	// Recolour one month-view day tile (a hand-picked override) and persist it.
+	const handleChangeDayColor = (key: string, color: string) => {
+		setMonthDayColors(prev => {
+			const next = { ...prev, [key]: color };
+			if (plugin) {
+				plugin.settings.monthDayColors = next;
+				plugin.saveSettings();
+			}
+			return next;
+		});
+	};
+
+	// Hand a day back to its automatic colour (the default for quiet days, the
+	// stable random palette colour for busy ones) by dropping its override.
+	const handleResetDayColor = (key: string) => {
+		setMonthDayColors(prev => {
+			if (!(key in prev)) return prev;
+			const next = { ...prev };
+			delete next[key];
+			if (plugin) {
+				plugin.settings.monthDayColors = next;
+				plugin.saveSettings();
+			}
+			return next;
+		});
+	};
+
+	// Freeze the month's automatic colours the moment they are decided. Merged into what
+	// is already stored, so one month's pass never disturbs another month's decisions.
+	const handleSeedMonthAutoColors = (colors: Record<string, string>) => {
+		if (Object.keys(colors).length === 0) return;
+		setMonthAutoDayColors(prev => {
+			const next = { ...prev, ...colors };
+			if (plugin) {
+				plugin.settings.monthAutoDayColors = next;
+				plugin.saveSettings();
+			}
+			return next;
+		});
+	};
+
+	// Clicking "Open this day" on a month tile jumps into the day view on that day.
+	const handleOpenDay = (day: Date) => {
+		if (onSelectDate) onSelectDate(day);
+		setViewMode('days');
 	};
 	useEffect(() => () => {
 		if (jumpHighlightTimerRef.current) clearTimeout(jumpHighlightTimerRef.current);
@@ -1680,14 +1936,64 @@ export const MainGrid = ({
 	const [dupCalAnchor, setDupCalAnchor] = useState<{ left: number; top: number; right: number; bottom: number } | null>(null);
 	const dupCalAnchorRef = useRef<{ left: number; top: number; right: number; bottom: number } | null>(null);
 	const [draggingEventTimes, setDraggingEventTimes] = useState<{ id: string; startTime: Date; endTime: Date } | null>(null);
+	// Which day header the tile in flight would land on, keyed by `toDateString()`.
+	// It drives the enlarged, washed header that marks the landing date — the day the
+	// tile started on counts too, so nudging a tile within its own day still lights
+	// its header. Null whenever no tile is in flight.
+	const [dragTargetDayKey, setDragTargetDayKey] = useState<string | null>(null);
+	// Pushing a tile against either end of the grid and holding it there asks the
+	// calendar to move a whole page on — forwards against the right edge (over the timer
+	// column, or past it onto the right pane), backwards against the left (over the time
+	// labels, or past the grid's own edge). The tile is fenced at the grid's edge (see
+	// `clampTileToGrid`), so the gesture reads as "push past the end": after a short dwell
+	// the hold starts stepping, and it keeps stepping for as long as the tile is held
+	// there. `edgeHoldDir` drives the on-screen nudge; the dwell and repeat timers live in
+	// refs so arming never re-renders the grid.
+	const [edgeHoldDir, setEdgeHoldDir] = useState<'prev' | 'next' | null>(null);
+	const edgeHoldDirRef = useRef<'prev' | 'next' | null>(null);
+	const edgeHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const edgeHoldRepeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	// The window's own start day, kept in a ref so a repeat steps on from the latest
+	// page. A burst of steps lands faster than React re-renders, and each one has to
+	// carry the window a further page rather than all of them landing on the neighbour
+	// of the page they started from.
+	const windowStartRef = useRef<Date>(currentDate);
+	useEffect(() => {
+		windowStartRef.current = currentDate;
+	}, [currentDate]);
+	useEffect(() => () => {
+		if (edgeHoldTimerRef.current) clearTimeout(edgeHoldTimerRef.current);
+		if (edgeHoldRepeatRef.current) clearInterval(edgeHoldRepeatRef.current);
+	}, []);
 	// While a tile is in flight the current-time rule detaches from "now" and rides
 	// the dragged tile's top edge, so the time scale reads off exactly where the
 	// event would land. Cleared on drop/cancel, which snaps the rule back to the
 	// real current time.
 	const [dragIndicatorTop, setDragIndicatorTop] = useState<number | null>(null);
+	// While an event tile's top or bottom resize handle is being dragged the same
+	// rule marks the edge being moved — the tile's bottom for the end handle, its
+	// top for the start handle. Kept apart from the drag indicator so a tile move
+	// and an edge resize can never clobber each other's marker; released on pointer up.
+	const [resizeIndicatorTop, setResizeIndicatorTop] = useState<number | null>(null);
 	const lastDragTimesRef = useRef<{ startTime: Date; endTime: Date } | null>(null);
 	const currentDragTargetDateRef = useRef<Date | null>(null);
 	const originalDragEventRef = useRef<CalendarEvent | null>(null);
+	// The column index the in-flight tile is drawn in for the whole hold, sampled when
+	// the drag starts. A tile in flight must never move its own layout box: dnd-kit
+	// measures the dragged node and cancels any layout shift it sees, but that
+	// cancellation lands a frame *after* the shift, so every rect change the tile makes
+	// surfaces as a one-frame jump — the flicker and jitter seen when a tile is moved
+	// quickly. Pinning the column by index, together with the frozen time of day used
+	// in `displayEvents` below, keeps the rect identical from pick-up to drop, so there
+	// is never a shift for dnd-kit to cancel.
+	const dragOriginColumnIndexRef = useRef<number>(-1);
+	// The live vertical travel of the tile in flight, in pixels, sampled from the last
+	// drag-move. The tile's *visual* top is its time-of-day offset (its layout top) plus
+	// this travel, and while a tile is held against an end of the grid the fence clamps
+	// only its horizontal motion — so the vertical travel is the piece a page step must
+	// still add. Without it the drop rule snaps back to the layout top on every step and
+	// floats above the tile by the whole vertical drag distance.
+	const dragDeltaYRef = useRef<number>(0);
 	const [isCmdPressed, setIsCmdPressed] = useState<boolean>(false);
 	const isCmdPressedRef = useRef<boolean>(false);
 	// Command (Meta) is the only modifier that opens the duplicate drop calendar.
@@ -1763,11 +2069,15 @@ export const MainGrid = ({
 	// duplicates, but the copy is dragged freely in the normal grid.
 	const showDupCalendar = Boolean(isDuplicatingNow && isMetaPressed);
 
-	// The rule that marks "now" doubles as the drop indicator: while a tile is being
-	// dragged it sits on the dragged tile's top edge, then returns to the current
-	// time the moment the drag ends. The formula is the same one tiles use for their
-	// own `top`, so the rule lands exactly on the tile's top edge.
-	const timeLineTop = dragIndicatorTop ?? (currentTime.getHours() + currentTime.getMinutes() / 60) * pxPerHour;
+	// The rule that marks "now" doubles as a temporary edge marker: while a tile is
+	// dragged it sits on the dragged tile's top edge, and while an edge-resize handle
+	// is dragged it rides the edge being moved (the bottom for the end handle, the top
+	// for the start handle). It returns to the current time the moment the interaction
+	// ends. The formula is the same one tiles use for their own `top`, so the rule lands
+	// exactly on the edge it is reporting.
+	const indicatorTop = resizeIndicatorTop ?? dragIndicatorTop;
+	const isIndicatorActive = indicatorTop !== null;
+	const timeLineTop = indicatorTop ?? (currentTime.getHours() + currentTime.getMinutes() / 60) * pxPerHour;
 
 	useEffect(() => {
 		if (isDuplicatingNow) {
@@ -1912,6 +2222,46 @@ export const MainGrid = ({
 		};
 	}, [pxPerHour]);
 
+	// Switching between the full-month shape and the day grid tears the scrollport
+	// down and rebuilds it, so coming back from the month the grid would otherwise
+	// sit at 12 AM. Bring it straight down to the current-time indicator instead —
+	// the same landing spot the grid takes when it first opens. Keyed on the view
+	// shape only, so merely adding/removing a day column leaves the reader's scroll
+	// position alone. Purely presentational: it moves the scrollport, never any data.
+	const didInitViewScrollRef = useRef(false);
+	const viewScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	useEffect(() => {
+		if (!didInitViewScrollRef.current) {
+			// The first mount is already positioned by the initial-scroll effect.
+			didInitViewScrollRef.current = true;
+			return;
+		}
+		if (viewMode === 'month') return;
+		const scrollNow = () => {
+			const el = weekGridRef.current;
+			if (el && el.clientHeight > 50) {
+				scrollToCurrentTime(false);
+				hasInitialScrolled.current = true;
+				return true;
+			}
+			return false;
+		};
+		// Wait a frame so the freshly re-mounted grid has been laid out, then fall
+		// back to a short timer in case that first frame lands before it has height.
+		const raf = requestAnimationFrame(() => {
+			if (!scrollNow()) {
+				viewScrollTimerRef.current = setTimeout(scrollNow, 80);
+			}
+		});
+		return () => {
+			cancelAnimationFrame(raf);
+			if (viewScrollTimerRef.current) {
+				clearTimeout(viewScrollTimerRef.current);
+				viewScrollTimerRef.current = null;
+			}
+		};
+	}, [viewMode]);
+
 	useEffect(() => {
 		if (externalUpdatedEvent) {
 			setEvents(prev => prev.map(e => e.id === externalUpdatedEvent.id ? externalUpdatedEvent : e));
@@ -2050,6 +2400,68 @@ export const MainGrid = ({
 		if (onEventSelect) onEventSelect(newEvent);
 	};
 
+	/**
+		* Dropping a to-do or a note onto a month day tile.
+		*
+		* A month tile has no hour scale and so no Y position to read a time from, which
+		* is the one thing this shares with the drop handler above. The entry lands in a
+		* civil 9am slot on the day it was dropped on, wearing the default tile colour,
+		* with a note arriving linked and a to-do arriving as a plain titled entry —
+		* exactly what the same drop produces on a day column. Nothing else is invented
+		* and the details pane is deliberately not opened: the tile quietly gains the
+		* entry and the default pane stays put.
+		*/
+	const handleMonthDrop = (e: React.DragEvent, day: Date) => {
+		const doc = extractObsidianDoc(e.dataTransfer);
+		if (!doc) return;
+
+		const startTime = new Date(day);
+		startTime.setHours(9, 0, 0, 0);
+		const endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
+
+		const isNote = !!doc.isNote;
+		const newEvent: CalendarEvent = {
+			id: Math.random().toString(36).substring(7),
+			title: doc.title,
+			startTime,
+			endTime,
+			colorTheme: defaultEventColor,
+			description: isNote ? doc.link : '',
+			linkedNotes: isNote ? [doc.title] : undefined,
+			todos: undefined
+		};
+		setEvents(prev => [...prev, newEvent]);
+		if (onEventModified) onEventModified(newEvent);
+	};
+
+	/**
+		* Copies every event of one day onto another day, on the month view's own instruction.
+		*
+		* This is the other half of the month's day-to-day drag: the tile reports only which day
+		* was dragged onto which, the confirmation is answered up there, and the copy is made
+		* here, where the events live. Each event is re-dated whole, by a plain `addDays` shift,
+		* so its time of day and its length come across untouched — a 9am meeting becomes a 9am
+		* meeting, and an event that spills past midnight still spills. The copies are new
+		* entries with fresh ids, carrying their details and their repeats along, exactly as the
+		* day view's duplicate is; the day they came from is never touched. The list is appended
+		* in a single update, and the app's own debounced save picks it up from there.
+		*/
+	const handleCopyDayEvents = useCallback((from: Date, to: Date) => {
+		const shift = differenceInCalendarDays(to, from);
+		if (!shift) return;
+		setEvents(prev => {
+			const source = prev.filter(e => isSameDay(e.startTime, from));
+			if (source.length === 0) return prev;
+			const copies = source.map(e => ({
+				...e,
+				id: Math.random().toString(36).substring(7),
+				startTime: addDays(e.startTime, shift),
+				endTime: addDays(e.endTime, shift)
+			}));
+			return [...prev, ...copies];
+		});
+	}, []);
+
 	const handleTimeScalePointerDown = (e: React.PointerEvent) => {
 		e.preventDefault();
 		const startY = e.clientY;
@@ -2174,7 +2586,119 @@ export const MainGrid = ({
 		window.addEventListener('pointerup', handlePointerUp);
 	};
 
+	// Holding a tile against an end of the grid pages the window on. These four govern
+	// that gesture: how long it must be held before it takes, how far apart the repeat
+	// steps fall, and how close to each end counts as "pushed against it". To the right
+	// the grid's edge is only the start of the timer column and the right pane beyond it,
+	// so a sliver inside the edge is enough. To the left the pane's edge is the screen's
+	// own edge, and the tile rests over the time labels long before the pointer can go
+	// anywhere — so the band there reaches across that whole label gutter instead.
+	const EDGE_HOLD_DELAY_MS = 700;
+	const EDGE_HOLD_REPEAT_MS = 1200;
+	const EDGE_HOLD_BAND_PX = 10;
+	const EDGE_HOLD_BACK_BAND_PX = 56;
+
+	const stopEdgeHold = useCallback(() => {
+		if (edgeHoldTimerRef.current) {
+			clearTimeout(edgeHoldTimerRef.current);
+			edgeHoldTimerRef.current = null;
+		}
+		if (edgeHoldRepeatRef.current) {
+			clearInterval(edgeHoldRepeatRef.current);
+			edgeHoldRepeatRef.current = null;
+		}
+		if (edgeHoldDirRef.current !== null) {
+			edgeHoldDirRef.current = null;
+			setEdgeHoldDir(null);
+		}
+	}, []);
+
+	// Where the drop rule's `top` belongs while a tile is in flight: the tile's own
+	// time-of-day offset plus its live vertical travel, so the rule rides the tile's top
+	// edge exactly as a resting tile's own `top` would. Bounded to the day so the rule can
+	// never float off the time scale.
+	const dragIndicatorTopFor = useCallback((hours: number, minutes: number, deltaY: number) => {
+		const raw = (hours + minutes / 60) * pxPerHour + deltaY;
+		return Math.max(0, Math.min(24 * pxPerHour, raw));
+	}, [pxPerHour]);
+
+	// Slide the visible window on by a whole page — forwards or backwards — and move the
+	// in-flight tile's own preview onto the first (or last) day of the new page. The tile
+	// is re-homed in `displayEvents` in the same beat, so it never blinks out of existence
+	// while the page turns; the times set here are what it lands on.
+	const stepWindowPage = useCallback((direction: 'prev' | 'next') => {
+		const step = Math.max(1, daysToView);
+		const target = addDays(windowStartRef.current, direction === 'next' ? step : -step);
+		windowStartRef.current = target;
+		if (onSelectDate) onSelectDate(target);
+
+		const ev = originalDragEventRef.current;
+		if (ev) {
+			const duration = Math.max(30 * 60 * 1000, ev.endTime.getTime() - ev.startTime.getTime());
+			const start = new Date(target);
+			start.setHours(ev.startTime.getHours(), ev.startTime.getMinutes(), 0, 0);
+			const end = new Date(start.getTime() + duration);
+			currentDragTargetDateRef.current = target;
+			lastDragTimesRef.current = { startTime: start, endTime: end };
+			setDraggingEventTimes({ id: ev.id, startTime: start, endTime: end });
+			// Keep the drop rule on the tile's *visual* top edge, not its layout top: the
+			// box is deliberately held still across the page turn, so the rule must carry
+			// the live vertical travel too or it detaches from the tile.
+			setDragIndicatorTop(dragIndicatorTopFor(start.getHours(), start.getMinutes(), dragDeltaYRef.current));
+			setDragTargetDayKey(target.toDateString());
+		}
+	}, [daysToView, onSelectDate, dragIndicatorTopFor]);
+
+	const startEdgeHold = useCallback((direction: 'prev' | 'next') => {
+		// Already waiting on this very direction: leave the dwell running rather than
+		// restarting it on every pointer move while the tile sits against the edge.
+		if (edgeHoldDirRef.current === direction) return;
+		if (edgeHoldTimerRef.current) {
+			clearTimeout(edgeHoldTimerRef.current);
+			edgeHoldTimerRef.current = null;
+		}
+		if (edgeHoldRepeatRef.current) {
+			clearInterval(edgeHoldRepeatRef.current);
+			edgeHoldRepeatRef.current = null;
+		}
+		edgeHoldDirRef.current = direction;
+		setEdgeHoldDir(direction);
+		edgeHoldTimerRef.current = setTimeout(() => {
+			edgeHoldTimerRef.current = null;
+			stepWindowPage(direction);
+			edgeHoldRepeatRef.current = setInterval(() => stepWindowPage(direction), EDGE_HOLD_REPEAT_MS);
+		}, EDGE_HOLD_DELAY_MS);
+	}, [stepWindowPage]);
+
+	// dnd-kit's own delta is the tile's *fenced* travel, and it stops being reported at
+	// all once the tile has come to rest on the grid's edge — so neither the deltas nor
+	// the drag-move events can tell us how far the pointer has really gone. The edge-hold
+	// therefore reads the real pointer, followed here for as long as a tile is in flight.
+	useEffect(() => {
+		if (!activeDragId) return;
+		const handlePointerMove = (e: PointerEvent) => {
+			const grid = weekGridRef.current;
+			// Only a plain grid drag can arm a hold: the duplicate pop-out has its own
+			// navigation, and a tile up there is heading for the panel, not a new page.
+			if (!grid || !tileFenceEnabledRef.current) {
+				stopEdgeHold();
+				return;
+			}
+			const bounds = grid.getBoundingClientRect();
+			if (e.clientX >= bounds.right - EDGE_HOLD_BAND_PX) startEdgeHold('next');
+			else if (e.clientX <= bounds.left + EDGE_HOLD_BACK_BAND_PX) startEdgeHold('prev');
+			else stopEdgeHold();
+		};
+		window.addEventListener('pointermove', handlePointerMove, true);
+		return () => window.removeEventListener('pointermove', handlePointerMove, true);
+	}, [activeDragId, startEdgeHold, stopEdgeHold]);
+
 	const handleDragStart = (event: DragStartEvent) => {
+		// A fresh drag always begins with the edge-hold put away and with the page stepper
+		// anchored on the window that is actually on screen.
+		stopEdgeHold();
+		dragDeltaYRef.current = 0;
+		windowStartRef.current = startDate;
 		const activator = event.activatorEvent as MouseEvent | undefined;
 		const isCmd = Boolean(
 			isDuplicatingNow ||
@@ -2193,10 +2717,18 @@ export const MainGrid = ({
 			isMetaPressedRef.current = true;
 			setIsMetaPressed(true);
 		}
-		const activeEvent = event.active.data.current as CalendarEvent;
-		if (activeEvent) {
+		const activeEvent = event.active.data.current as CalendarEvent | undefined;
+		// Guarded on the times as well as the object: dnd-kit hands back a truthy but
+		// empty data object for a node that has unmounted, and every path below reads
+		// the event's own start time.
+		if (activeEvent && activeEvent.startTime) {
 			originalDragEventRef.current = activeEvent;
+			// Sample the column the tile starts in. It is where the tile stays drawn for
+			// the whole hold — even after an edge-hold page step carries its real day off
+			// screen — so the tile's own box never shifts (see the ref's own note).
+			dragOriginColumnIndexRef.current = days.findIndex(d => isSameDay(d, activeEvent.startTime));
 			currentDragTargetDateRef.current = activeEvent.startTime;
+			setDragTargetDayKey(activeEvent.startTime.toDateString());
 			lastDragTimesRef.current = { startTime: activeEvent.startTime, endTime: activeEvent.endTime };
 			if (onEventSelect) {
 				onEventSelect(activeEvent);
@@ -2225,8 +2757,16 @@ export const MainGrid = ({
 	const handleDragMove = (event: DragMoveEvent) => {
 		const { active, over, delta } = event;
 		if (!active) return;
-		const activeEvent = active.data.current as CalendarEvent;
-		if (!activeEvent) return;
+		// The dragged tile's own day column can leave the window while a drag is under way
+		// — the edge-hold pages the calendar on — and dnd-kit falls back to an empty data
+		// object for an active node that unmounts (its `defaultData`). That object is
+		// truthy but carries no times, so the drag's own snapshot is the source of truth
+		// here; it is also the original the drop is measured against.
+		const activeEvent = (originalDragEventRef.current || active.data.current) as CalendarEvent | undefined;
+		if (!activeEvent || !activeEvent.startTime || !activeEvent.endTime) return;
+
+		// The tile's live vertical travel, kept for any page step (see `dragDeltaYRef`).
+		dragDeltaYRef.current = delta.y;
 
 		// Second chance to learn where the tile actually is, for the cases where the
 		// rect was not yet measured when the drag started.
@@ -2246,7 +2786,10 @@ export const MainGrid = ({
 		// in-grid preview is put away, and the original event is left exactly as it is.
 		if (overData?.dupCalDay || overData?.dupCalPanel) {
 			setDraggingEventTimes(prev => (prev ? null : prev));
+			setDragTargetDayKey(null);
 			lastDragTimesRef.current = null;
+			// The drag has left the grid for the pop-out, so any edge-hold is withdrawn.
+			stopEdgeHold();
 			return;
 		}
 
@@ -2255,6 +2798,9 @@ export const MainGrid = ({
 		// while the pointer sits off the grid. Leaving the preview — and the drop marker
 		// with it — exactly where they are is what keeps the two of them from nudging the
 		// layout back and forth frame after frame while the tile is held there.
+		// The edge-hold is not armed here: by the time the tile has reached the fence its
+		// clamped delta has stopped changing, so this handler is no longer being called at
+		// all. It is read from the raw pointer instead — see the `pointermove` effect above.
 		const gridEl = weekGridRef.current;
 		const pressStartX = (event.activatorEvent as MouseEvent | undefined)?.clientX;
 		if (
@@ -2262,6 +2808,16 @@ export const MainGrid = ({
 			typeof pressStartX === 'number' &&
 			pressStartX + delta.x > gridEl.getBoundingClientRect().right + 4
 		) {
+			// Fenced against the grid's right edge. The fence clamps only the horizontal
+			// travel, so the tile still rides the pointer up and down — keep the drop rule
+			// on its top edge or it detaches and floats above the tile by that distance.
+			// Only the rule is refreshed here: the preview and the times stay put, so the
+			// resting tiles are never nudged frame after frame.
+			setDragIndicatorTop(dragIndicatorTopFor(
+				activeEvent.startTime.getHours(),
+				activeEvent.startTime.getMinutes(),
+				delta.y
+			));
 			return;
 		}
 
@@ -2269,6 +2825,10 @@ export const MainGrid = ({
 			currentDragTargetDateRef.current = overData.date;
 		}
 		const targetDate = currentDragTargetDateRef.current || activeEvent.startTime;
+		// Only re-render the headers when the pointer crosses into another day, so a
+		// drag across the grid costs one paint per day boundary, not one per frame.
+		const targetDayKey = targetDate.toDateString();
+		setDragTargetDayKey(prev => (prev === targetDayKey ? prev : targetDayKey));
 		const timeShiftHours = delta.y / pxPerHour;
 
 		const newStart = new Date(targetDate);
@@ -2318,8 +2878,11 @@ export const MainGrid = ({
 	};
 
 	const handleDragCancel = () => {
+		stopEdgeHold();
+		dragDeltaYRef.current = 0;
 		setActiveDragId(null);
 		setDraggingEventTimes(null);
+		setDragTargetDayKey(null);
 		setDragIndicatorTop(null);
 		setDupCalMonth(null);
 		dupCalAnchorRef.current = null;
@@ -2330,6 +2893,7 @@ export const MainGrid = ({
 			onEventModified(originalDragEventRef.current);
 		}
 		originalDragEventRef.current = null;
+		dragOriginColumnIndexRef.current = -1;
 	};
 
 	const handleDragEnd = (event: DragEndEvent) => {
@@ -2343,8 +2907,11 @@ export const MainGrid = ({
 				isCmdPressedRef.current
 			);
 
+		stopEdgeHold();
+		dragDeltaYRef.current = 0;
 		setActiveDragId(null);
 		setDraggingEventTimes(null);
+		setDragTargetDayKey(null);
 		setDragIndicatorTop(null);
 		setDupCalMonth(null);
 		dupCalAnchorRef.current = null;
@@ -2366,6 +2933,7 @@ export const MainGrid = ({
 		const finishDrag = () => {
 			originalDragEventRef.current = null;
 			currentDragTargetDateRef.current = null;
+			dragOriginColumnIndexRef.current = -1;
 		};
 
 		const hasActuallyMoved = Math.hypot(delta.x, delta.y) >= 6;
@@ -2387,9 +2955,12 @@ export const MainGrid = ({
 		const targetDate = popoutDay || (overData?.date as Date) || currentDragTargetDateRef.current;
 
 		if (targetDate) {
-			const activeEvent = active.data.current as CalendarEvent;
+			// As in `handleDragMove`: the tile's own data is gone the moment the edge-hold
+			// pages its day column off screen, so the snapshot taken at drag start is what
+			// the drop is built from.
+			const activeEvent = (originalDragEventRef.current || active.data.current) as CalendarEvent | undefined;
 
-			if (activeEvent) {
+			if (activeEvent && activeEvent.startTime && activeEvent.endTime) {
 				const duration = Math.max(30 * 60 * 1000, activeEvent.endTime.getTime() - activeEvent.startTime.getTime());
 				let snappedStart: Date;
 				let snappedEnd: Date;
@@ -2490,7 +3061,48 @@ export const MainGrid = ({
 		}));
 	};
 
-	const displayEvents = draftEvent ? [...events, draftEvent] : events;
+	// A tile in flight is normally drawn on the day it started from. An edge-hold page
+	// step can carry that day off screen, though, and the tile would be unmounted along
+	// with its column — so while its own day is out of the window the tile is re-homed.
+	//
+	// The re-homing deliberately keeps the tile's own box exactly as it was: it returns
+	// to the same column *index* it started in, at the same time of day and duration, so
+	// the box the pointer is carrying never moves. That stillness is the whole point.
+	// dnd-kit cancels a layout shift by measuring the dragged node, but the cancellation
+	// lands a frame after the shift, so any rect change shows up as a one-frame jump —
+	// the flicker and jitter a quickly-moved tile displayed. With the rect held still
+	// there is nothing to cancel: the tile merely keeps existing while the page turns
+	// silently beneath it. The drop itself is unaffected — it is built from the pointer
+	// and `over` in `handleDragEnd`, never from this preview.
+	// Events the grid should actually draw. A profile switched off in the default
+	// right pane only filters its tiles out here — the event objects themselves and
+	// the `events` array the rest of the grid edits are left completely alone, so
+	// toggling a profile back on restores its tiles exactly as they were.
+	const visibleEvents = useMemo(() => {
+		if (!hiddenProfileIds || hiddenProfileIds.size === 0) return events;
+		return events.filter(e => !e.profileId || !hiddenProfileIds.has(e.profileId));
+	}, [events, hiddenProfileIds]);
+
+	let displayEvents = draftEvent ? [...visibleEvents, draftEvent] : visibleEvents;
+	if (activeDragId && draggingEventTimes) {
+		const moving = displayEvents.find(e => e.id === draggingEventTimes.id);
+		if (moving && !days.some(d => isSameDay(d, moving.startTime))) {
+			const origin = originalDragEventRef.current;
+			const homeIndex = dragOriginColumnIndexRef.current;
+			const homeDay = homeIndex >= 0 && homeIndex < days.length ? days[homeIndex] : days[0];
+			// The event's own time of day and duration — never the live dragged times —
+			// so the re-homed box sits at exactly the height the box had at pick-up.
+			const baseStart = origin ? origin.startTime : draggingEventTimes.startTime;
+			const baseEnd = origin ? origin.endTime : draggingEventTimes.endTime;
+			const baseDuration = Math.max(30 * 60 * 1000, baseEnd.getTime() - baseStart.getTime());
+			const frozenStart = new Date(homeDay);
+			frozenStart.setHours(baseStart.getHours(), baseStart.getMinutes(), 0, 0);
+			const frozenEnd = new Date(frozenStart.getTime() + baseDuration);
+			displayEvents = displayEvents.map(e => e.id === moving.id
+				? { ...e, startTime: frozenStart, endTime: frozenEnd }
+				: e);
+		}
+	}
 
 	// The clock in the timer column header only animates while something is truly
 	// counting down — a still clock is the honest state.
@@ -2498,8 +3110,10 @@ export const MainGrid = ({
 	// The chase arc is deliberately accented even when accents are switched off: a
 	// running timer is the one signal here that should read as live and coloured. It
 	// resolves the chosen accent directly rather than leaning on `--sleek-accent`,
-	// which does not exist in no-accent mode.
-	const chaseAccentHex = resolveAccentHex(plugin?.settings?.accentColor || plugin?.settings?.themeColor || 'blue') || DEFAULT_ACCENT_HEX;
+	// which does not exist in no-accent mode — and softens it the same way `App`
+	// softens the app-wide accent, so this one direct resolution is not the single
+	// place left showing the raw swatch.
+	const chaseAccentHex = toneDownAccent(resolveAccentHex(plugin?.settings?.accentColor || plugin?.settings?.themeColor || 'blue') || DEFAULT_ACCENT_HEX) || DEFAULT_ACCENT_HEX;
 
 	// Calendar profiles offered by each tile's right-click menu, mirroring the picker
 	// under the event title in the right pane.
@@ -2605,6 +3219,8 @@ export const MainGrid = ({
 							className="current-month"
 							onMouseEnter={handleBtnHoverEnter}
 							onMouseLeave={handleBtnHoverLeave}
+							onClick={() => { if (viewMode === 'month') requestMonthSnap(); }}
+							title={viewMode === 'month' ? 'Settle this month back onto a whole month' : undefined}
 							style={{ borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', transition: 'all 0.15s ease' }}
 						>
 							<h2 style={{ margin: 0 }}>{format(currentDate, 'MMMM yyyy')}</h2>
@@ -2619,7 +3235,7 @@ export const MainGrid = ({
 									onMouseLeave={handleBtnHoverLeave}
 									title="Change number of days displayed"
 								>
-									<span>{daysToView} {daysToView === 1 ? 'day' : 'days'}</span>
+									<span>{viewMode === 'month' ? 'Month' : `${daysToView} ${daysToView === 1 ? 'day' : 'days'}`}</span>
 									<span className="dropdown-arrow">▼</span>
 								</button>
 								{isViewMenuOpen && (
@@ -2627,8 +3243,8 @@ export const MainGrid = ({
 										{[1, 2, 3, 4, 5, 6, 7].map(num => (
 											<div
 												key={num}
-												className={`view-dropdown-item ${num === daysToView ? 'active' : ''}`}
-												onClick={() => { setDaysToView(num); setIsViewMenuOpen(false); }}
+												className={`view-dropdown-item ${viewMode === 'days' && num === daysToView ? 'active' : ''}`}
+												onClick={() => { setViewMode('days'); setDaysToView(num); setIsViewMenuOpen(false); }}
 												onMouseEnter={(e) => {
 													e.currentTarget.style.backgroundColor = 'var(--background-modifier-hover)';
 													e.currentTarget.style.filter = 'brightness(1.15)';
@@ -2641,6 +3257,23 @@ export const MainGrid = ({
 												{num} {num === 1 ? 'day' : 'days'}
 											</div>
 										))}
+										{/* The full-month shape. Choosing it swaps the day columns for a
+												  seven-across month grid; the timeline drops away with them. */}
+										<div
+											key="month"
+											className={`view-dropdown-item ${viewMode === 'month' ? 'active' : ''}`}
+											onClick={() => { setViewMode('month'); setIsViewMenuOpen(false); }}
+											onMouseEnter={(e) => {
+												e.currentTarget.style.backgroundColor = 'var(--background-modifier-hover)';
+												e.currentTarget.style.filter = 'brightness(1.15)';
+											}}
+											onMouseLeave={(e) => {
+												e.currentTarget.style.backgroundColor = '';
+												e.currentTarget.style.filter = '';
+											}}
+										>
+											Month
+										</div>
 									</div>
 								)}
 
@@ -2658,17 +3291,24 @@ export const MainGrid = ({
 							<div className="date-nav-buttons">
 								<button
 									className="today-nav-btn"
-									onClick={() => { onNavigate && onNavigate('today'); scrollToCurrentTime(true); }}
+									onClick={() => {
+										// Today is the other place a reader asks for a clean picture: the date
+										// moves to today, and the month grid is asked to settle back onto a
+										// whole month in case the wheel had left it resting mid-scroll.
+										if (onNavigate) onNavigate('today');
+										if (viewMode === 'month') requestMonthSnap();
+										if (viewMode === 'days') scrollToCurrentTime(true);
+									}}
 									onMouseEnter={handleBtnHoverEnter}
 									onMouseLeave={handleBtnHoverLeave}
-									title="Scroll to current time"
+									title={viewMode === 'month' ? 'Jump to today' : 'Scroll to current time'}
 								>
 									Today
 								</button>
 								<div className="nav-arrow-group">
 									<button
 										className="nav-arrow-btn"
-										onClick={() => handleStepDay('prev')}
+										onClick={() => handleStepView('prev')}
 										onMouseEnter={handleBtnHoverEnter}
 										onMouseLeave={handleBtnHoverLeave}
 										title="Previous"
@@ -2677,7 +3317,7 @@ export const MainGrid = ({
 									</button>
 									<button
 										className="nav-arrow-btn"
-										onClick={() => handleStepDay('next')}
+										onClick={() => handleStepView('next')}
 										onMouseEnter={handleBtnHoverEnter}
 										onMouseLeave={handleBtnHoverLeave}
 										title="Next"
@@ -2689,26 +3329,39 @@ export const MainGrid = ({
 
 							<button
 								className="timer-toggle-btn"
-								onClick={() => setShowTimerColumn(!showTimerColumn)}
-								title={showTimerColumn ? "Hide Timer Column" : "Show Timer Column"}
+								onClick={() => {
+									// Timers live on the day view's hour scale, so this control is
+									// simply inert while the month is on screen.
+									if (viewMode === 'month') return;
+									setShowTimerColumn(!showTimerColumn);
+								}}
+								title={viewMode === 'month'
+									? 'Timers are a day-view tool'
+									: showTimerColumn ? "Hide Timer Column" : "Show Timer Column"}
 								style={{
 									display: 'flex', alignItems: 'center', justifyContent: 'center',
 									// Accent only while the timer column is active; neutral otherwise.
-									background: showTimerColumn ? 'var(--sleek-accent, var(--background-modifier-hover))' : 'transparent',
-									color: showTimerColumn
-										? (accentColor ? 'rgba(0, 0, 0, 0.85)' : 'var(--text-normal)')
-										: 'var(--text-muted)',
+									background: showTimerColumn && viewMode !== 'month' ? 'var(--sleek-accent, var(--background-modifier-hover))' : 'transparent',
+									color: viewMode === 'month'
+										? 'var(--text-faint)'
+										: showTimerColumn
+											? (accentColor ? 'rgba(0, 0, 0, 0.85)' : 'var(--text-normal)')
+											: 'var(--text-muted)',
 									border: '1px solid var(--background-modifier-border)',
 									borderRadius: '6px', padding: '4px 15px', minWidth: '48px', height: '28px',
-									cursor: 'pointer', marginLeft: '8px', transition: 'all 0.15s ease'
+									cursor: viewMode === 'month' ? 'not-allowed' : 'pointer',
+									opacity: viewMode === 'month' ? 0.45 : 1,
+									marginLeft: '8px', transition: 'all 0.15s ease'
 								}}
 								onMouseEnter={(e) => {
+									if (viewMode === 'month') return;
 									if (!showTimerColumn) {
 										e.currentTarget.style.backgroundColor = 'var(--background-modifier-hover)';
 										e.currentTarget.style.color = 'var(--text-normal)';
 									}
 								}}
 								onMouseLeave={(e) => {
+									if (viewMode === 'month') return;
 									if (!showTimerColumn) {
 										e.currentTarget.style.backgroundColor = 'transparent';
 										e.currentTarget.style.color = 'var(--text-muted)';
@@ -2773,6 +3426,29 @@ export const MainGrid = ({
 							strokeWidth={clampDoodleShapeStroke(plugin?.settings?.doodleShapeStroke)}
 							spread={clampDoodleShapeSpread(plugin?.settings?.doodleShapeSpread)}
 						/>
+						{/* Holding a tile against either end of the grid pages the window on. While
+						    the hold is armed this pill rides that end — over the timer column on the
+						    right, over the time labels on the left — so the gesture reads as "the
+						    calendar is about to move on". Its floor fills over the dwell, making the
+						    wait legible. Decorative only: `pointer-events: none`, so it never
+						    disturbs the drag. */}
+						{activeDragId && edgeHoldDir && (
+							<div className={`sleek-edge-step-hint is-${edgeHoldDir}`} aria-hidden="true">
+								{edgeHoldDir === 'prev' && (
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+										<polyline points="15 18 9 12 15 6" />
+									</svg>
+								)}
+								<span className="sleek-edge-step-text">
+									{edgeHoldDir === 'next' ? 'Next days' : 'Previous days'}
+								</span>
+								{edgeHoldDir === 'next' && (
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+										<polyline points="9 18 15 12 9 6" />
+									</svg>
+								)}
+							</div>
+						)}
 						{/* Command-dragging a tile duplicates it and pops out a one-month
 						    calendar: drop the copy on any day there, or ignore the panel and
 						    drop it on the grid as usual. Control-dragging duplicates without
@@ -2787,141 +3463,173 @@ export const MainGrid = ({
 								preview={activeDragId ? events.find(e => e.id === activeDragId) || null : null}
 							/>
 						)}
-						<div className="week-grid-container" style={{ display: 'flex', flexDirection: 'column', flex: days.length, borderRight: 'none', overflow: 'hidden' }}>
-							{/* Static Headers (Decoupled from scrolling body) */}
-							<div className="grid-headers-wrapper" style={{ display: 'flex', height: '82px', flexShrink: 0, zIndex: 10 }}>
-								<div className="time-column-header-spacer" style={{ width: '50px', flexShrink: 0, height: '100%', position: 'relative' }} />
-								<div className="days-header" style={{ flex: 1, display: 'flex', position: 'relative' }}>
-									{days.map((day, i) => {
-										const isSelected = isSameDay(day, currentDate);
-										const isToday = isSameDay(day, currentTime);
-										const isCollapsed = Boolean(collapsedDays[collapsedKey(day)]);
-										const isJumpHighlight = jumpHighlightKey === day.toDateString();
-										return (
-											<div key={i} className="day-header" style={{ flex: 1 }}>
-												<div
-													className={`day-header-inner ${isSelected ? 'active' : ''} ${isToday ? 'today' : ''} ${isCollapsed ? 'is-collapsed' : ''} ${isJumpHighlight ? 'is-jump-highlight' : ''}`}
-													title={`${format(day, 'EEEE, MMMM d, yyyy')} — click to ${isCollapsed ? 'show' : 'hide'} events`}
-													onClick={() => toggleDayCollapsed(day)}
-													onMouseEnter={handleDayHeaderHoverEnter}
-													onMouseLeave={handleDayHeaderHoverLeave}
-												>
-													<span className="day-number">{format(day, 'dd')}</span>
-													<span className="day-name">{format(day, 'EEE')}</span>
-												</div>
-												<div className="day-header-tick" />
-											</div>
-										);
-									})}
-								</div>
+						{viewMode === 'month' ? (
+							<div className="month-grid-container" style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, overflow: 'hidden' }}>
+								<MonthView
+									currentDate={currentDate}
+									events={visibleEvents}
+									defaultDayColor={monthDefaultColor}
+									dayColors={monthDayColors}
+									onChangeDayColor={handleChangeDayColor}
+									onResetDayColor={handleResetDayColor}
+									onOpenDay={handleOpenDay}
+									onDropItem={handleMonthDrop}
+									autoColors={monthAutoDayColors}
+									onSeedAutoColors={handleSeedMonthAutoColors}
+									onStepMonth={handleStepMonth}
+									onCopyDayEvents={handleCopyDayEvents}
+									snapSignal={monthSnapSignal}
+									accentColor={accentColor}
+								/>
 							</div>
+						) : (
+							<div className="week-grid-container" style={{ display: 'flex', flexDirection: 'column', flex: days.length, borderRight: 'none', overflow: 'hidden' }}>
+								{/* Static Headers (Decoupled from scrolling body) */}
+								<div className="grid-headers-wrapper" style={{ display: 'flex', height: '82px', flexShrink: 0, zIndex: 10 }}>
+									<div className="time-column-header-spacer" style={{ width: '50px', flexShrink: 0, height: '100%', position: 'relative' }} />
+									<div className="days-header" style={{ flex: 1, display: 'flex', position: 'relative' }}>
+										{days.map((day, i) => {
+											const isSelected = isSameDay(day, currentDate);
+											const isToday = isSameDay(day, currentTime);
+											const isCollapsed = Boolean(collapsedDays[collapsedKey(day)]);
+											const isJumpHighlight = jumpHighlightKey === day.toDateString();
+											const isDropTarget = dragTargetDayKey === day.toDateString();
+											return (
+												<div key={i} className={`day-header${isDropTarget ? ' is-drop-target' : ''}`} style={{ flex: 1 }}>
+													<div
+														className={`day-header-inner ${isSelected ? 'active' : ''} ${isToday ? 'today' : ''} ${isCollapsed ? 'is-collapsed' : ''} ${isJumpHighlight ? 'is-jump-highlight' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
+														title={`${format(day, 'EEEE, MMMM d, yyyy')} — click to ${isCollapsed ? 'show' : 'hide'} events`}
+														onClick={() => toggleDayCollapsed(day)}
+														onMouseEnter={handleDayHeaderHoverEnter}
+														onMouseLeave={handleDayHeaderHoverLeave}
+													>
+														<span className="day-number">{format(day, 'dd')}</span>
+														<span className="day-name">{format(day, 'EEE')}</span>
+													</div>
+													<div className="day-header-tick" />
+												</div>
+											);
+										})}
+									</div>
+								</div>
 
-							{/* Scrolling Body */}
-							{/* `overflowX: hidden` on purpose: with only `overflowY` set, the other
+								{/* Scrolling Body */}
+								{/* `overflowX: hidden` on purpose: with only `overflowY` set, the other
 							    axis resolves to `auto`, and a tile dragged to the right used to grow
 							    the scrollable width — which parked a horizontal scrollbar on the grid
 							    and gave dnd-kit something to scroll back and forth. Pinning the axis
 							    to `hidden` keeps the scrollport's shape fixed; the tile is clipped at
 							    the edge instead of pushing the layout around. */}
-							<div className="week-grid" ref={weekGridRef} style={{ display: 'flex', flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
-								{/* Current-time indicator: spans the full width (including under the hour
+								<div className="week-grid" ref={weekGridRef} style={{ display: 'flex', flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+									{/* Current-time indicator: spans the full width (including under the hour
 								    labels) and is non-interactive so it never blocks drag-to-create.
 								    While a tile is being dragged it becomes the drop indicator instead,
 								    riding the tile's top edge so the landing time can be read off the
-								    scale, and it steps above the tiles so it stays readable. */}
-								<div
-									className={`current-time-line${dragIndicatorTop !== null ? ' is-drag-indicator' : ''}`}
-									aria-hidden="true"
-									style={{
-										top: `${timeLineTop}px`,
-										pointerEvents: 'none',
-										// Day columns carry z-index 1, so 0 keeps the rule beneath the
-										// tiles at rest; racing it above them only during a drag.
-										zIndex: dragIndicatorTop !== null ? 40 : 0
-									}}
-								>
-									<div className="current-time-marker" style={{ pointerEvents: 'none' }} />
-								</div>
-
-								{/* Left: Time Column */}
-								<div
-									className="time-column"
-									style={{ cursor: 'ns-resize', height: `${24 * pxPerHour}px`, flexShrink: 0 }}
-									onPointerDown={handleTimeScalePointerDown}
-									title="Drag up or down to zoom time scale"
-								>
-									{Array.from({ length: 24 }).map((_, i) => {
-										const hour24 = i;
-										const hour12 = hour24 === 0 ? 12 : (hour24 > 12 ? hour24 - 12 : hour24);
-										const ampm = hour24 < 12 ? 'am' : 'pm';
-										const isCurrentHour = i === currentTime.getHours();
-										return (
-											<div
-												key={i}
-												className={`time-slot-label${isCurrentHour ? ' current-hour' : ''}`}
-												style={{
-													height: `${pxPerHour}px`,
-													minHeight: `${pxPerHour}px`,
-													maxHeight: `${pxPerHour}px`,
-													flex: `0 0 ${pxPerHour}px`,
-													transform: i === 0 ? 'translateY(2px)' : undefined
-												}}
-											>
-												{hour12} {ampm}
-											</div>
-										);
-									})}
-								</div>
-
-								{/* Right: Days Columns */}
-								<div className="days-columns">
+								    scale; while an edge-resize handle is dragged it becomes the same
+								    marker on the edge being moved. Either way it steps above the tiles
+								    so it stays readable. */}
 									<div
-										className="days-body"
+										className={`current-time-line${isIndicatorActive ? ' is-drag-indicator' : ''}`}
+										aria-hidden="true"
 										style={{
-											flex: 1,
-											minWidth: 0,
-											height: `${24 * pxPerHour}px`,
-											minHeight: `${24 * pxPerHour}px`,
-											backgroundSize: `100% ${pxPerHour}px`,
-											position: 'relative',
-											display: 'flex'
+											top: `${timeLineTop}px`,
+											pointerEvents: 'none',
+											// While the duplicate drop-calendar pop-out is open the
+											// temporary indicator is hidden outright: during a Meta
+											// duplication it would ride the tile right across the mini
+											// calendar the user is aiming at and get in the way of it.
+											display: showDupCalendar ? 'none' : undefined,
+											// Day columns carry z-index 1, so 0 keeps the rule beneath the
+											// tiles at rest; racing it above them only while a tile is
+											// dragged or an edge handle is being dragged.
+											zIndex: isIndicatorActive ? 40 : 0
 										}}
 									>
-										{/* Current-time indicator: purely decorative overlay.
+										<div className="current-time-marker" style={{ pointerEvents: 'none' }} />
+									</div>
+
+									{/* Left: Time Column */}
+									<div
+										className="time-column"
+										style={{ cursor: 'ns-resize', height: `${24 * pxPerHour}px`, flexShrink: 0 }}
+										onPointerDown={handleTimeScalePointerDown}
+										title="Drag up or down to zoom time scale"
+									>
+										{Array.from({ length: 24 }).map((_, i) => {
+											const hour24 = i;
+											const hour12 = hour24 === 0 ? 12 : (hour24 > 12 ? hour24 - 12 : hour24);
+											const ampm = hour24 < 12 ? 'am' : 'pm';
+											const isCurrentHour = i === currentTime.getHours();
+											return (
+												<div
+													key={i}
+													className={`time-slot-label${isCurrentHour ? ' current-hour' : ''}`}
+													style={{
+														height: `${pxPerHour}px`,
+														minHeight: `${pxPerHour}px`,
+														maxHeight: `${pxPerHour}px`,
+														flex: `0 0 ${pxPerHour}px`,
+														transform: i === 0 ? 'translateY(2px)' : undefined
+													}}
+												>
+													{hour12} {ampm}
+												</div>
+											);
+										})}
+									</div>
+
+									{/* Right: Days Columns */}
+									<div className="days-columns">
+										<div
+											className="days-body"
+											style={{
+												flex: 1,
+												minWidth: 0,
+												height: `${24 * pxPerHour}px`,
+												minHeight: `${24 * pxPerHour}px`,
+												backgroundSize: `100% ${pxPerHour}px`,
+												position: 'relative',
+												display: 'flex'
+											}}
+										>
+											{/* Current-time indicator: purely decorative overlay.
 										    Rendered before the day columns and given z-index 0 so it always
 										    paints UNDER event tiles, and pointer-events:none so it never
 										    intercepts clicks/drag-to-create on the grid. */}
-										{days.map((day, i) => (
-											<DayColumn
-												key={i}
-												day={day}
-												events={displayEvents.filter(e => isSameDay(e.startTime, day))}
-												onResizeEnd={handleResizeEnd}
-												onBackgroundPointerDown={handleBackgroundPointerDown}
-												onEventClick={onEventSelect}
-												selectedEventId={selectedEventId}
-												pxPerHour={pxPerHour}
-												onNativeDrop={handleNativeDrop}
-												onDropOnEvent={handleDropOnEvent}
-												activeDragId={activeDragId}
-												isDuplicatingNow={isDuplicatingNow}
-												onDeleteEvent={handleDeleteEvent}
-												onUpdateEvent={handleEventUpdate}
-												onDuplicateEvent={handleDuplicateEvent}
-												draggingEventTimes={draggingEventTimes}
-												collapsed={Boolean(collapsedDays[collapsedKey(day)])}
-												begunEventIds={begunEventIds}
-												showTileDetails={showTileDetails}
-												calendarProfiles={calendarProfiles}
-											/>
-										))}
+											{days.map((day, i) => (
+												<DayColumn
+													key={i}
+													day={day}
+													events={displayEvents.filter(e => isSameDay(e.startTime, day))}
+													onResizeEnd={handleResizeEnd}
+													onResizeIndicator={setResizeIndicatorTop}
+													onBackgroundPointerDown={handleBackgroundPointerDown}
+													onEventClick={onEventSelect}
+													selectedEventId={selectedEventId}
+													pxPerHour={pxPerHour}
+													onNativeDrop={handleNativeDrop}
+													onDropOnEvent={handleDropOnEvent}
+													activeDragId={activeDragId}
+													isDuplicatingNow={isDuplicatingNow}
+													onDeleteEvent={handleDeleteEvent}
+													onUpdateEvent={handleEventUpdate}
+													onDuplicateEvent={handleDuplicateEvent}
+													draggingEventTimes={draggingEventTimes}
+													collapsed={Boolean(collapsedDays[collapsedKey(day)])}
+													begunEventIds={begunEventIds}
+													revealActive={revealActive}
+													showTileDetails={showTileDetails}
+													calendarProfiles={calendarProfiles}
+												/>
+											))}
 
+										</div>
 									</div>
 								</div>
 							</div>
-						</div> {/* End week-grid-container */}
+						)}
 
-						{showTimerColumn && (
+						{showTimerColumn && viewMode !== 'month' && (
 							<div className="timer-zone" style={{ flex: 1, minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--background-primary)', minHeight: 0 }}>
 								{/* No bottom border here: the calendar's own header has none either, so a
 								    rule across the timer column only ever read as a stray line. A press on
@@ -2964,6 +3672,7 @@ export const MainGrid = ({
 										setTimers={setTimers}
 										pxPerHour={timerPxPerHour}
 										plugin={plugin}
+										revealActive={revealActive}
 										onBackgroundClick={() => onEventSelect(null as any)}
 										onCompleteTodo={(eventId, todoId) => {
 											let updatedEvent = null;

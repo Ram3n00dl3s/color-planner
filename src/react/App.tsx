@@ -5,18 +5,41 @@ import { MainGrid } from './components/MainGrid';
 import { RightPane } from './components/RightPane';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { CalendarEvent } from '../types';
-import { resolveAccentHex, DEFAULT_ACCENT_HEX, hexToRgba, ACCENT_CHIP_TINT_ALPHA } from '../utils/colors';
+import { resolveAccentHex, DEFAULT_ACCENT_HEX, hexToRgba, ACCENT_CHIP_TINT_ALPHA, toneDownAccent } from '../utils/colors';
 import { resolveBackgroundUrl, DEFAULT_BACKGROUND_FIT, DEFAULT_BACKGROUND_DIM } from '../utils/backgroundImage';
 import { getDoodlePatternUrl, DEFAULT_DOODLE_STYLE, DOODLE_TILE_SIZE, clampDoodleOpacity, isAnimatedDoodleStyle } from '../utils/doodleBackground';
 
 export const App = ({ plugin }: { plugin: SleekCalendarPlugin }) => {
 	const [currentDate, setCurrentDate] = useState(new Date());
 	const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+	// Which shape the grid is showing, mirrored up from MainGrid. The right pane reads
+	// it to stay on its own default view for as long as the full month is up: the
+	// event-details view is a day-view idea, and the month does its own dropping.
+	const [gridMode, setGridMode] = useState<'days' | 'month'>(() => (plugin?.settings?.viewMode === 'month' ? 'month' : 'days'));
+	const showEventDetails = Boolean(selectedEvent) && gridMode !== 'month';
 	const [updatedEvent, setUpdatedEvent] = useState<CalendarEvent | null>(null);
 	const [deletedEventId, setDeletedEventId] = useState<string | null>(null);
 
 	const [events, setEvents] = useState<CalendarEvent[]>([]);
 	const [timers, setTimers] = useState<any[]>([]);
+
+	// Calendar profiles the user has switched *off* from the default right pane.
+	// This is purely a view filter: no event is ever modified, added or removed —
+	// the grid simply stops rendering the tiles whose `profileId` is in here.
+	// Clicking a profile chip toggles its id in and out of this set.
+	const [hiddenProfileIds, setHiddenProfileIds] = useState<Set<string>>(() => new Set());
+
+	const toggleProfileVisibility = (profileId: string) => {
+		setHiddenProfileIds(prev => {
+			const next = new Set(prev);
+			if (next.has(profileId)) {
+				next.delete(profileId);
+			} else {
+				next.add(profileId);
+			}
+			return next;
+		});
+	};
 
 	// Re-render whenever the user changes plugin settings (accent, time zone, ...).
 	const [, settingsTick] = useState(0);
@@ -29,7 +52,11 @@ export const App = ({ plugin }: { plugin: SleekCalendarPlugin }) => {
 	// Resolve accent (null when accents are disabled) and the effective time zone.
 	const accentEnabled = plugin?.settings ? (plugin.settings.accentEnabled ?? true) : true;
 	const accentName = plugin?.settings?.accentColor || plugin?.settings?.themeColor || 'blue';
-	const accentColor = accentEnabled ? (resolveAccentHex(accentName) || DEFAULT_ACCENT_HEX) : null;
+	// The picked swatch is softened exactly once, here, before it becomes the
+	// `--sleek-accent` CSS variables and the `accentColor` prop every component
+	// below is handed. One mute at the source keeps the whole calendar — solid
+	// fills, accent text and the tint wash — at the same, calmer strength.
+	const accentColor = accentEnabled ? toneDownAccent(resolveAccentHex(accentName) || DEFAULT_ACCENT_HEX) : null;
 	const timeZone = plugin?.settings?.timeZone || 'auto';
 
 	// Optional picture background, resolved to a usable CSS url (vault path or URL).
@@ -181,13 +208,15 @@ export const App = ({ plugin }: { plugin: SleekCalendarPlugin }) => {
 					onEventDelete={handleEventDelete}
 					onNavigate={handleNavigate}
 					onSelectDate={setCurrentDate}
+					onViewModeChange={setGridMode}
+					hiddenProfileIds={hiddenProfileIds}
 				/>
 			</ErrorBoundary>
 			<div className="sleek-right-panel-wrapper" style={{ zIndex: 5, position: 'relative' }}>
-				<div style={{ display: selectedEvent ? 'none' : 'flex', width: '100%', height: '100%', flexDirection: 'column' }}>
-					<Sidebar currentDate={currentDate} setCurrentDate={setCurrentDate} plugin={plugin} timers={timers} setTimers={setTimers} accentColor={accentColor} timeZone={timeZone} events={events} />
+				<div style={{ display: showEventDetails ? 'none' : 'flex', width: '100%', height: '100%', flexDirection: 'column' }}>
+					<Sidebar currentDate={currentDate} setCurrentDate={setCurrentDate} plugin={plugin} timers={timers} setTimers={setTimers} accentColor={accentColor} timeZone={timeZone} events={events} mode={gridMode} hiddenProfileIds={hiddenProfileIds} onToggleProfileVisibility={toggleProfileVisibility} />
 				</div>
-				{selectedEvent && (
+				{showEventDetails && selectedEvent && (
 					<div style={{ display: 'flex', width: '100%', height: '100%', flexDirection: 'column' }}>
 						<ErrorBoundary fallback={
 							<div style={{ padding: '20px', textAlign: 'center' }}>

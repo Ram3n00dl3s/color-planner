@@ -70,14 +70,21 @@ export const TimerColumn = ({
 	pxPerHour,
 	plugin,
 	onCompleteTodo,
-	onBackgroundClick
+	onBackgroundClick,
+	revealActive
 }: {
 	timers: TimerTile[],
 	setTimers: React.Dispatch<React.SetStateAction<TimerTile[]>>,
 	pxPerHour: number,
 	plugin: SleekCalendarPlugin,
 	onCompleteTodo?: (eventId: string, todoId: string) => void,
-	onBackgroundClick?: () => void
+	onBackgroundClick?: () => void,
+	/**
+	 * True for a beat after the grid changes shape (month ↔ days, or the number of
+	 * days in view). Every timer tile then drops in with the same springy entrance
+	 * the calendar's event tiles use.
+	 */
+	revealActive?: boolean
 }) => {
 
 
@@ -394,6 +401,7 @@ export const TimerColumn = ({
 							onDragReorderMove={handleTileDragMove}
 							onDragReorderEnd={handleTileDragEnd}
 							isAnyTileDragging={isTileDragging}
+							revealActive={revealActive}
 						/>
 					))}
 					{draftTimer && (
@@ -412,7 +420,7 @@ export const TimerColumn = ({
 	);
 };
 
-const TimerBlock = ({ timer, timers, setTimers, pxPerHour, isDraft, exactTopPx, onCompleteTodo, onDragReorderMove, onDragReorderEnd, isAnyTileDragging }: { timer: TimerTile, timers: TimerTile[], setTimers: React.Dispatch<React.SetStateAction<TimerTile[]>>, pxPerHour: number, isDraft?: boolean, exactTopPx?: number, onCompleteTodo?: (eventId: string, todoId: string) => void, onDragReorderMove?: (id: string, desiredTopPx: number) => void, onDragReorderEnd?: () => void, isAnyTileDragging?: boolean }) => {
+const TimerBlock = ({ timer, timers, setTimers, pxPerHour, isDraft, exactTopPx, onCompleteTodo, onDragReorderMove, onDragReorderEnd, isAnyTileDragging, revealActive }: { timer: TimerTile, timers: TimerTile[], setTimers: React.Dispatch<React.SetStateAction<TimerTile[]>>, pxPerHour: number, isDraft?: boolean, exactTopPx?: number, onCompleteTodo?: (eventId: string, todoId: string) => void, onDragReorderMove?: (id: string, desiredTopPx: number) => void, onDragReorderEnd?: () => void, isAnyTileDragging?: boolean, revealActive?: boolean }) => {
 
 	const [isDragging, setIsDragging] = useState(false);
 	const [isResizing, setIsResizing] = useState(false);
@@ -427,6 +435,10 @@ const TimerBlock = ({ timer, timers, setTimers, pxPerHour, isDraft, exactTopPx, 
 	// Whether the tile menu's full palette is unfolded beside the quick swatches.
 	const [showColorPicker, setShowColorPicker] = useState(false);
 	const [displayTimeRemaining, setDisplayTimeRemaining] = useState(timer.timeRemainingMin);
+	// One-shot acknowledgement for a right-click: the tile gives the tiniest press
+	// before the context menu appears, exactly as the calendar's event tiles do.
+	// Toggled false → next frame true so repeated right-clicks replay it.
+	const [isContextPulsing, setIsContextPulsing] = useState(false);
 
 	useEffect(() => {
 		const lastTickTime = timer.lastTickTime;
@@ -473,6 +485,11 @@ const TimerBlock = ({ timer, timers, setTimers, pxPerHour, isDraft, exactTopPx, 
 	const heightPx = Math.max(36, rawHeight - 8);
 	const isSmall = heightPx < 65;
 	const isBounceTick = timer.isPlaying && (Math.floor(displayTimeRemaining * 60) % 60 === 0);
+	// The view-shape reveal reuses the same gentle entrance the calendar event
+	// tiles use on a view change (`tile-reveal` keyframes), so a timer drops and
+	// fades in identically. Held off while the tile is being dragged or resized,
+	// where the motion would fight.
+	const isRevealing = Boolean(revealActive && !isDraft && !isDragging && !isResizing);
 
 	// The timestamp rides on top of the scanning label and is backed by the tile's own
 	// colour, so the label slides underneath it and disappears there instead of ever
@@ -503,12 +520,17 @@ const TimerBlock = ({ timer, timers, setTimers, pxPerHour, isDraft, exactTopPx, 
 		// Every open starts with the palette folded away.
 		setShowColorPicker(false);
 		setShowContextMenu(true);
+		// Acknowledge the click with the smallest possible motion — the same pulse the
+		// event tiles use. Dropping the class for one frame and re-adding it on the next
+		// restarts the keyframe, so a rapid second right-click still plays it afresh.
+		setIsContextPulsing(false);
+		requestAnimationFrame(() => setIsContextPulsing(true));
 	};
 
 
 	return (
 		<div
-			className={`placeholder-event timer-tile event-${timer.colorTheme || DEFAULT_TIMER_COLOR} ${isSmall ? 'small-tile' : ''} ${timer.isPlaying ? 'is-active' : ''}`}
+			className={`placeholder-event timer-tile event-${timer.colorTheme || DEFAULT_TIMER_COLOR} ${isSmall ? 'small-tile' : ''} ${timer.isPlaying ? 'is-active' : ''} ${isContextPulsing ? 'context-pulse' : ''} ${isRevealing ? 'tile-reveal' : ''}`}
 			style={{
 				top: `${topPx}px`,
 				height: `${heightPx}px`,

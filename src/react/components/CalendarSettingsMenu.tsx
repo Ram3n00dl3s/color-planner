@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import SleekCalendarPlugin from '../../main';
-import { ACCENT_SWATCHES, EVENT_COLOR_HEX, resolveAccentHex, DEFAULT_ACCENT_HEX } from '../../utils/colors';
+import { ACCENT_SWATCHES, EVENT_COLOR_HEX, PALETTE_ORDER, resolveAccentHex, DEFAULT_ACCENT_HEX, toneDownAccent } from '../../utils/colors';
 import { AUTO_TIME_ZONE, TIME_ZONE_OPTIONS, getNowInTimeZone, getTimeZoneLabel } from '../../utils/timezone';
 import { BACKGROUND_FIT_OPTIONS, DEFAULT_BACKGROUND_FIT, DEFAULT_BACKGROUND_DIM } from '../../utils/backgroundImage';
 import {
@@ -47,6 +47,8 @@ type Draft = {
     accentEnabled: boolean;
     accentColor: string;
     showTileDetails: boolean;
+    /** Default palette colour for a quiet day tile in the month view. */
+    monthViewDefaultColor: string;
     timeZone: string;
     backgroundImage: string;
     backgroundFit: string;
@@ -163,6 +165,7 @@ export const CalendarSettingsMenu = ({
         accentEnabled: settings?.accentEnabled ?? true,
         accentColor: settings?.accentColor || settings?.themeColor || 'blue',
         showTileDetails: settings?.showTileDetails !== false,
+        monthViewDefaultColor: settings?.monthViewDefaultColor || 'pastel-blue',
         timeZone: settings?.timeZone || AUTO_TIME_ZONE,
         backgroundImage: settings?.backgroundImage || '',
         backgroundFit: settings?.backgroundFit || DEFAULT_BACKGROUND_FIT,
@@ -189,6 +192,10 @@ export const CalendarSettingsMenu = ({
     // lands outside it (see the outside-click handler below).
     const [accentOpen, setAccentOpen] = useState(false);
     const accentRef = useRef<HTMLDivElement | null>(null);
+
+    // Month-view day colour dropdown — same compact shell as the accent picker.
+    const [monthColorOpen, setMonthColorOpen] = useState(false);
+    const monthColorRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
         if (!plugin?.settings?.refreshToken) return;
@@ -241,10 +248,13 @@ export const CalendarSettingsMenu = ({
                 onClose();
                 return;
             }
-            // A click elsewhere in the panel closes the accent dropdown but leaves
+            // A click elsewhere in the panel closes an open dropdown but leaves
             // the panel itself open.
             if (accentRef.current && !accentRef.current.contains(target as Node)) {
                 setAccentOpen(false);
+            }
+            if (monthColorRef.current && !monthColorRef.current.contains(target as Node)) {
+                setMonthColorOpen(false);
             }
         };
         const onKey = (e: KeyboardEvent) => {
@@ -306,8 +316,10 @@ export const CalendarSettingsMenu = ({
     const shapesVisible = isAnimatedDoodleStyle(draft.doodleStyle);
     // The panel is portaled to <body>, i.e. OUTSIDE .sleek-calendar-app, so the
     // accent CSS variable has to be re-declared here for the toggles/checkboxes.
+    // Softened the same way `App` softens the app-wide accent, so the panel's
+    // toggles/checkboxes never preview the raw, more intense swatch.
     const accentHex = draft.accentEnabled
-        ? (resolveAccentHex(draft.accentColor) || DEFAULT_ACCENT_HEX)
+        ? (toneDownAccent(resolveAccentHex(draft.accentColor) || DEFAULT_ACCENT_HEX) || DEFAULT_ACCENT_HEX)
         : 'rgba(255, 255, 255, 0.5)';
 
     const panel = (
@@ -387,6 +399,49 @@ export const CalendarSettingsMenu = ({
                 <Section title="Event tiles">
                     <Row label="Show details on tiles" desc="Print to-do items and description lines inside tiles.">
                         <Toggle checked={draft.showTileDetails} onChange={(v) => update({ showTileDetails: v })} />
+                    </Row>
+                </Section>
+
+                {/* ---- Month view ---- */}
+                <Section title="Month view">
+                    <Row
+                        label="Default day colour"
+                        desc="Day tiles with no events wear this colour. Days with events get their own random colour."
+                    >
+                        <div className="sleek-settings-colors" ref={monthColorRef}>
+                            <button
+                                type="button"
+                                className="sleek-settings-colors-btn"
+                                onClick={() => setMonthColorOpen((o) => !o)}
+                                title="Choose the default day-tile colour"
+                            >
+                                <span
+                                    className="sleek-settings-colors-dot"
+                                    style={{ background: EVENT_COLOR_HEX[draft.monthViewDefaultColor] || 'rgba(255, 255, 255, 0.2)' }}
+                                />
+                                <span className="sleek-settings-colors-label">{draft.monthViewDefaultColor.replace(/-/g, ' ')}</span>
+                                <svg className="sleek-settings-colors-chevron" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                            </button>
+                            {monthColorOpen && (
+                                <div className="sleek-settings-colors-menu">
+                                    {PALETTE_ORDER.map((name) => (
+                                        <button
+                                            key={name}
+                                            type="button"
+                                            className={`sleek-settings-swatch${draft.monthViewDefaultColor === name ? ' is-selected' : ''}`}
+                                            style={{ background: EVENT_COLOR_HEX[name] || 'rgba(255, 255, 255, 0.2)' }}
+                                            title={name}
+                                            onClick={() => {
+                                                update({ monthViewDefaultColor: name });
+                                                setMonthColorOpen(false);
+                                            }}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </Row>
                 </Section>
 
