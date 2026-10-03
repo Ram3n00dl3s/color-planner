@@ -701,12 +701,23 @@ export const RightPane = ({ event, onClose, onUpdate, onDateSelect, onDelete, pl
 
 	const handleCreatePlannerNote = async (noteBody: string) => {
 		const file = await createPlannerNote(plugin?.app, { name: plannerNoteName, body: noteBody });
-		setIsComposingNote(false);
-		if (file) {
-			new Notice(`Note created: ${file.path}`);
-		} else {
+		if (!file) {
+			setIsComposingNote(false);
 			new Notice('Could not create the note — check the vault folder.');
+			return;
 		}
+
+		// The new note is attached to the event exactly the way the "+ Link note"
+		// picker attaches one: its basename joins the event's linked notes, so it
+		// appears as a chip beneath the event and travels with the event like any
+		// other link. Nothing is written back into the note itself.
+		if (event) {
+			const updatedNotes = Array.from(new Set([...linkedNotes, file.basename]));
+			setLinkedNotes(updatedNotes);
+			onUpdate({ ...event, description, linkedNotes: updatedNotes, todos: eventTodos });
+		}
+		setIsComposingNote(false);
+		new Notice(`Note created and linked: ${file.path}`);
 	};
 
 	const handleAttachmentDrop = (e: React.DragEvent) => {
