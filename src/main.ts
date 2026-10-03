@@ -145,8 +145,7 @@ export default class SleekCalendarPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			// The id stays as-is so any hotkeys or links pointing at it keep working.
-			id: 'open-sleek-calendar',
+			id: 'open-color-planner',
 			name: 'Open Color Planner',
 			callback: () => {
 				this.activateView();

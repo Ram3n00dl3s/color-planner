@@ -24,14 +24,14 @@ Once published: **Settings → Community plugins → Browse**, search for **Colo
 
 ### Manual installation
 
-1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/Ram3n00dl3s/obsidian-sleek-google-calendar/releases/latest).
-2. Create the folder `<YourVault>/.obsidian/plugins/sleek-google-calendar/`.
+1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/Ram3n00dl3s/color-planner/releases/latest).
+2. Create the folder `<YourVault>/.obsidian/plugins/color-planner/`.
 3. Copy the three files into that folder.
 4. Reload Obsidian and enable the plugin under **Settings → Community plugins**.
 
 ### Using BRAT
 
-Add `Ram3n00dl3s/obsidian-sleek-google-calendar` in [BRAT](https://github.com/TfTHacker/obsidian42-brat).
+Add `Ram3n00dl3s/color-planner` in [BRAT](https://github.com/TfTHacker/obsidian42-brat).
 
 ## Google Calendar setup (BYOK)
 
@@ -62,7 +62,7 @@ npm run build    # production build
 npm run typecheck
 ```
 
-Copy or symlink the repository into `<YourVault>/.obsidian/plugins/sleek-google-calendar/` and reload Obsidian to test changes.
+Copy or symlink the repository into `<YourVault>/.obsidian/plugins/color-planner/` and reload Obsidian to test changes.
 
 ## Releasing
 
