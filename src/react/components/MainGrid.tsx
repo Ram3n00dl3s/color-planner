@@ -826,6 +826,8 @@ const EventBlock = ({
 								{calendarProfiles.map(p => {
 									const isActive = event.profileId === p.id;
 									return (
+										/* The chosen swatch is marked by its tick alone: no ring or border is drawn
+										   around the colour, so nothing about its size or shape moves. */
 										<div
 											key={p.id}
 											data-profile-name={p.name}
@@ -840,9 +842,8 @@ const EventBlock = ({
 												alignItems: 'center',
 												justifyContent: 'center',
 												cursor: 'pointer',
-												boxShadow: isActive ? '0 0 0 2px var(--background-primary, #1c1d20), 0 0 0 4px var(--text-normal, #ffffff)' : 'none',
 												boxSizing: 'border-box',
-												transition: 'transform 0.12s ease, border-color 0.12s ease',
+												transition: 'transform 0.12s ease',
 												flexShrink: 0
 											}}
 											onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.15)'; }}

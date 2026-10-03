@@ -604,6 +604,23 @@ export const RightPane = ({ event, onClose, onUpdate, onDateSelect, onDelete, pl
 		}
 	};
 
+	// Erasing the title outright would leave a nameless tile, so the "Event" stand-in
+	// comes back the moment the field is left — the same default a new event is born
+	// with. This runs on blur only, never on change, so it cannot fight the user in the
+	// middle of an edit (deleting a title to retype it stays untouched until they leave);
+	// the emptiness test is a regex, not a `.trim()` on the value.
+	const handleTitleBlur = () => {
+		if (!event) return;
+		if (/^\s*$/.test(title)) {
+			setTitle('Event');
+			if (titleInputRef.current) {
+				titleInputRef.current.style.height = 'auto';
+				titleInputRef.current.style.height = `${Math.max(titleInputRef.current.scrollHeight, 38)}px`;
+			}
+			onUpdate({ ...event, title: 'Event' });
+		}
+	};
+
 	const handleDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
 		const newDesc = e.target.value;
 		setDescription(newDesc);
@@ -969,6 +986,7 @@ export const RightPane = ({ event, onClose, onUpdate, onDateSelect, onDelete, pl
 						value={title}
 						onChange={handleTitleChange}
 						onFocus={handleTitleFocus}
+						onBlur={handleTitleBlur}
 						rows={1}
 						onKeyDown={(e) => {
 							e.stopPropagation();
