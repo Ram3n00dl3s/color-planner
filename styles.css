@@ -5313,40 +5313,6 @@ body.sleek-tile-dragging .timer-zone * {
 	white-space: nowrap;
 }
 
-/* The Write / Split / Preview switch lives in the header, so the whole view mode is one
-   glance away without a toolbar crowding the writing surface. */
-.note-composer-modes {
-	display: flex;
-	align-items: center;
-	gap: 2px;
-	padding: 2px;
-	border-radius: 8px;
-	background: var(--background-primary);
-	flex-shrink: 0;
-}
-
-.note-composer-mode {
-	padding: 3px 10px;
-	border: none;
-	border-radius: 6px;
-	background: transparent;
-	color: var(--text-muted);
-	font-size: 11.5px;
-	cursor: pointer;
-	outline: none !important;
-	box-shadow: none !important;
-	transition: background 0.15s ease, color 0.15s ease;
-}
-
-.note-composer-mode:hover {
-	color: var(--text-normal);
-}
-
-.note-composer-mode.is-active {
-	background: var(--background-modifier-hover);
-	color: var(--text-normal);
-}
-
 .note-composer-close {
 	display: flex;
 	align-items: center;
@@ -5377,27 +5343,17 @@ body.sleek-tile-dragging .timer-zone * {
 	border: none;
 }
 
-/* The two writing surfaces share the body; whichever is showing takes the whole of it,
-   and in Split they meet at a hairline. */
-.note-composer-panes {
-	flex: 1;
-	min-height: 0;
-	display: flex;
-	align-items: stretch;
-}
-
 .note-composer-body {
 	flex: 1;
 	min-width: 0;
 	min-height: 0;
 	margin: 0;
-	padding: 18px 22px;
+	padding: 20px 24px;
 	border: none;
 	border-radius: 0;
 	background: transparent;
 	color: var(--text-normal);
-	/* Obsidian's own editor typography, so the source pane and the preview beside it
-	   wear the same face at the same size. */
+	/* Obsidian's own editor typography, so the note reads in the vault's own face. */
 	font-family: var(--font-text, inherit);
 	font-size: var(--font-text-size, 16px);
 	line-height: var(--line-height-normal, 1.6);
@@ -5421,40 +5377,6 @@ body.sleek-tile-dragging .timer-zone * {
 
 .note-composer-body::selection {
 	background: var(--text-selection, rgba(255, 255, 255, 0.2));
-}
-
-/* Obsidian's own rendering of what has been typed so far — the same reading view a
-   normal note gets, so headings, lists, tasks, tables, quotes, links, code and maths all
-   arrive already styled by the theme and any enabled snippets. */
-.note-composer-preview {
-	flex: 1;
-	min-width: 0;
-	min-height: 0;
-	overflow-y: auto;
-	padding: 10px 18px 20px 18px;
-	border-left: 1px solid var(--background-modifier-border);
-}
-
-.note-composer-preview-empty {
-	padding: 8px 0;
-	color: var(--text-faint, var(--text-muted));
-	font-size: 12.5px;
-}
-
-/* The reading-view classes are carried along purely for their typography; the layout
-   ones are neutralised, because the card is the scroll container and the padding above
-   is ours. */
-.note-composer-preview .markdown-preview-view {
-	height: auto;
-	overflow: visible;
-	padding: 0;
-	border: none;
-	background: transparent;
-	box-shadow: none;
-}
-
-.note-composer-preview .markdown-preview-view> :first-child {
-	margin-top: 0;
 }
 
 /* The `[[` strip: one quiet row of chips above the footer. It never covers the text, so a

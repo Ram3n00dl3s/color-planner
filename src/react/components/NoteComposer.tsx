@@ -1,14 +1,11 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { App, Component, MarkdownRenderer } from 'obsidian';
 
 interface NoteComposerProps {
     /** The finished note name, shown as the document's title (date + event title). */
     noteName: string;
     /** The vault folder the note will land in, shown as a quiet path line. */
     folder: string;
-    /** The vault app, used only to render the markdown preview. */
-    app?: App;
     /** The vault's notes, for the `[[` suggestion strip. */
     notes?: { basename: string; path: string }[];
     accentColor?: string | null;
@@ -16,44 +13,36 @@ interface NoteComposerProps {
     onCreate: (body: string) => void | Promise<void>;
 }
 
-type ComposeMode = 'write' | 'split' | 'preview';
-
 // How much of the header must always stay on screen, so a card dragged to any edge can
 // still be grabbed again.
 const HEAD_KEEP_VISIBLE = 96;
 
-// The floor for a manual resize: below this the header, the writing surfaces and the
+// The floor for a manual resize: below this the header, the writing surface and the
 // footer start fighting for room.
 const MIN_CARD_W = 360;
 const MIN_CARD_H = 240;
 
-// Long enough that a burst of typing renders once, short enough that the preview feels
-// attached to the caret.
-const PREVIEW_DEBOUNCE_MS = 160;
-
 const MAX_LINK_SUGGESTIONS = 6;
 
 /**
- * A quiet, full-size writing surface: the note as it *feels* before it exists as a
- * file. It deliberately knows nothing about the vault's *files* — it hands the typed
- * body to `onCreate`, which performs the one and only write.
+ * A quiet, full-size writing surface: the note as it *feels* before it exists as a file.
+ * It deliberately knows nothing about the vault's *files* — it hands the typed body to
+ * `onCreate`, which performs the one and only write.
  *
- * What it does borrow from Obsidian is the language. The right-hand pane is Obsidian's
- * own `MarkdownRenderer` — the very code behind reading view — so headings, emphasis,
- * lists, tasks, tables, quotes, links, code and maths are drawn exactly as they would be
- * in a normal note, theme and snippets included. The textarea then behaves the way an
- * Obsidian editor does: Enter carries a list or task marker on, Enter on an empty marker
- * ends the list, Tab indents, and ⌘B / ⌘I / ⌘K wrap the selection. `[[` opens the vault's
- * own notes as a suggestion strip.
+ * What it does carry is Obsidian's understanding of markdown as it is being written:
+ * Enter continues a list or a task marker (and a bare marker ends the list), Backspace on
+ * a bare marker takes the marker away, Tab and Shift+Tab indent and outdent, ⌘B / ⌘I /
+ * ⌘K wrap and unwrap the selection, and `[[` opens the vault's own notes as a suggestion
+ * strip. Everything is still stored as plain markdown, so the note reads exactly like any
+ * other in the vault.
  *
  * The card is deliberately NOT modal. There is no backdrop and nothing outside the card
  * captures a click, so the calendar, the timer column and the sidebars all stay fully
  * usable while a note is being written. The header is the drag handle and the
  * bottom-right corner is the resize grip.
  */
-export const NoteComposer = ({ noteName, folder, app, notes, accentColor, onCancel, onCreate }: NoteComposerProps) => {
+export const NoteComposer = ({ noteName, folder, notes, accentColor, onCancel, onCreate }: NoteComposerProps) => {
     const [body, setBody] = useState('');
-    const [mode, setMode] = useState<ComposeMode>('split');
     const [isSaving, setIsSaving] = useState(false);
     // `null` means "centred", which the stylesheet does with a translate; the first drag
     // measures the card and switches to absolute coordinates from there.
@@ -67,11 +56,6 @@ export const NoteComposer = ({ noteName, folder, app, notes, accentColor, onCanc
 
     const bodyRef = useRef<HTMLTextAreaElement | null>(null);
     const cardRef = useRef<HTMLDivElement | null>(null);
-    const previewRef = useRef<HTMLDivElement | null>(null);
-    // The Component that owns whatever the preview is currently showing, so embedded
-    // content can be released the moment that content is replaced or the card closes.
-    const previewOwnerRef = useRef<Component | null>(null);
-    const previewGenRef = useRef(0);
     // A programmatic edit has to move the caret, but React re-writes `value` (and with it
     // the caret) on the render that follows — so the target selection is parked here and
     // restored in a layout effect, before the browser paints.
@@ -98,7 +82,7 @@ export const NoteComposer = ({ noteName, folder, app, notes, accentColor, onCanc
     };
     commitRef.current = () => { void commit(); };
 
-    // --- Markdown-driven behaviour on the textarea --------------------------------
+    // --- Markdown behaviour on the writing surface ---------------------------------
 
     const applyEdit = (next: string, selStart: number, selEnd: number = selStart) => {
         pendingSelRef.current = { start: selStart, end: selEnd };
@@ -168,6 +152,10 @@ export const NoteComposer = ({ noteName, folder, app, notes, accentColor, onCanc
         applyEdit(before + open + inner + close + after, start + open.length, start + open.length + inner.length);
     };
 
+    // Matches the marker that opens a list item — bullet or number, with an optional task
+    // box — as Obsidian understands it. Used by Enter and Backspace alike.
+    const MARKER_RE = /^([ \t]*)(?:([-*+])|(\d+)([.)]))[ \t]+(?:(\[[ xX]\])[ \t]+)?/;
+
     // Enter continues a list or a task marker, and a bare marker simply ends the list —
     // the same rules Obsidian's own editor applies. Mid-line, the browser's plain newline
     // is left alone.
@@ -179,7 +167,7 @@ export const NoteComposer = ({ noteName, folder, app, notes, accentColor, onCanc
 
         const lineStart = value.lastIndexOf('\n', caret - 1) + 1;
         const line = value.slice(lineStart, caret);
-        const match = /^([ \t]*)(?:([-*+])|(\d+)([.)]))[ \t]+(?:(\[[ xX]\])[ \t]+)?/.exec(line);
+        const match = MARKER_RE.exec(line);
         if (!match) return false;
 
         const rest = line.slice(match[0].length);
@@ -195,6 +183,22 @@ export const NoteComposer = ({ noteName, folder, app, notes, accentColor, onCanc
         const continuation = match[5] ? `${marker}[ ] ` : marker;
         const insert = `\n${continuation}`;
         applyEdit(value.slice(0, caret) + insert + value.slice(caret), caret + insert.length);
+        return true;
+    };
+
+    // Backspace on a marker with nothing behind it takes the marker away rather than
+    // eating a character, which is how an Obsidian list collapses back to plain text.
+    const handleBackspace = (el: HTMLTextAreaElement) => {
+        const value = el.value;
+        const caret = el.selectionStart;
+        if (el.selectionEnd !== caret) return false;
+
+        const lineStart = value.lastIndexOf('\n', caret - 1) + 1;
+        const lineEndIndex = value.indexOf('\n', caret);
+        const lineEnd = lineEndIndex === -1 ? value.length : lineEndIndex;
+        if (!/^[ \t]*(?:[-*+]|\d+[.)])[ \t]+(?:\[[ xX]\][ \t]+)?$/.test(value.slice(lineStart, lineEnd))) return false;
+
+        applyEdit(value.slice(0, lineStart) + value.slice(lineEnd), lineStart);
         return true;
     };
 
@@ -345,6 +349,10 @@ export const NoteComposer = ({ noteName, folder, app, notes, accentColor, onCanc
                 if (handleEnter(el)) e.preventDefault();
                 return;
             }
+            if (inBody && e.key === 'Backspace') {
+                if (handleBackspace(el)) e.preventDefault();
+                return;
+            }
             if (inBody && e.key === 'Tab') {
                 e.preventDefault();
                 handleTab(el, e.shiftKey);
@@ -353,43 +361,6 @@ export const NoteComposer = ({ noteName, folder, app, notes, accentColor, onCanc
         window.addEventListener('keydown', onKey, true);
         return () => window.removeEventListener('keydown', onKey, true);
     }, [onCancel]);
-
-    // --- Live preview through Obsidian's own renderer -----------------------------
-
-    const targetPath = folder ? `${folder}/${noteName}.md` : `${noteName}.md`;
-
-    useEffect(() => {
-        if (mode === 'write' || !app) return;
-        const host = previewRef.current;
-        if (!host) return;
-
-        const gen = ++previewGenRef.current;
-        const timer = window.setTimeout(() => {
-            const owner = new Component();
-            owner.load();
-            // Rendered into a detached element and swapped in one shot, so a slow render
-            // can never leave the previous one's leftovers behind.
-            const stage = document.createElement('div');
-            stage.className = 'markdown-preview-view markdown-rendered';
-            void MarkdownRenderer.render(app, body, stage, targetPath, owner).then(() => {
-                if (gen !== previewGenRef.current || !previewRef.current) {
-                    owner.unload();
-                    return;
-                }
-                const previous = previewOwnerRef.current;
-                previewOwnerRef.current = owner;
-                previewRef.current.replaceChildren(stage);
-                if (previous) previous.unload();
-            });
-        }, PREVIEW_DEBOUNCE_MS);
-
-        return () => window.clearTimeout(timer);
-    }, [body, mode, app, targetPath]);
-
-    useEffect(() => () => {
-        previewOwnerRef.current?.unload();
-        previewOwnerRef.current = null;
-    }, []);
 
     // --- Moving and sizing ---------------------------------------------------------
 
@@ -407,7 +378,7 @@ export const NoteComposer = ({ noteName, folder, app, notes, accentColor, onCanc
     };
 
     // A resize can never push the card off the window either: the grip stops at the near
-    // edge, and the floors keep the writing surfaces usable.
+    // edge, and the floors keep the writing surface usable.
     const clampSize = (next: { w: number; h: number }) => {
         const rect = cardRef.current?.getBoundingClientRect();
         const maxW = Math.max(MIN_CARD_W, (rect ? window.innerWidth - rect.left : window.innerWidth) - 12);
@@ -429,9 +400,8 @@ export const NoteComposer = ({ noteName, folder, app, notes, accentColor, onCanc
         return () => window.removeEventListener('resize', onResize);
     }, []);
 
-    // The header is the handle. A press that lands on a control inside it — the mode
-    // switches or the close button — is left to that control, so the card is never dragged
-    // by accident.
+    // The header is the handle. A press that lands on a control inside it — the close
+    // button — is left to that control, so the card is never dragged by accident.
     const handleDragStart = (e: React.PointerEvent) => {
         if (e.button !== 0) return;
         if ((e.target as HTMLElement).closest('button')) return;
@@ -494,12 +464,6 @@ export const NoteComposer = ({ noteName, folder, app, notes, accentColor, onCanc
         window.addEventListener('pointerup', onUp);
     };
 
-    const MODES: { value: ComposeMode; label: string; title: string }[] = [
-        { value: 'write', label: 'Write', title: 'Write only' },
-        { value: 'split', label: 'Split', title: 'Write and preview side by side' },
-        { value: 'preview', label: 'Preview', title: 'Preview only' }
-    ];
-
     return createPortal(
         <div
             ref={cardRef}
@@ -528,20 +492,6 @@ export const NoteComposer = ({ noteName, folder, app, notes, accentColor, onCanc
                     <div className="note-composer-path" title={folder}>{folder ? `Saved to ${folder}` : 'Saved to the vault root'}</div>
                 </div>
 
-                <div className="note-composer-modes" role="group" aria-label="View mode">
-                    {MODES.map(m => (
-                        <button
-                            key={m.value}
-                            type="button"
-                            className={`note-composer-mode${mode === m.value ? ' is-active' : ''}`}
-                            title={m.title}
-                            onClick={() => setMode(m.value)}
-                        >
-                            {m.label}
-                        </button>
-                    ))}
-                </div>
-
                 <button type="button" className="note-composer-close" onClick={onCancel} title="Close" aria-label="Close">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -550,35 +500,20 @@ export const NoteComposer = ({ noteName, folder, app, notes, accentColor, onCanc
                 </button>
             </div>
 
-            <div className="note-composer-panes">
-                {mode !== 'preview' && (
-                    <textarea
-                        ref={bodyRef}
-                        className="note-composer-body"
-                        value={body}
-                        onChange={(e) => { setBody(e.target.value); syncLinkQuery(); }}
-                        onKeyDown={(e) => e.stopPropagation()}
-                        onKeyUp={(e) => { if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') syncLinkQuery(); }}
-                        onClick={syncLinkQuery}
-                        onSelect={syncLinkQuery}
-                        placeholder="Start writing…"
-                        spellCheck={false}
-                    />
-                )}
+            <textarea
+                ref={bodyRef}
+                className="note-composer-body"
+                value={body}
+                onChange={(e) => { setBody(e.target.value); syncLinkQuery(); }}
+                onKeyDown={(e) => e.stopPropagation()}
+                onKeyUp={(e) => { if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') syncLinkQuery(); }}
+                onClick={syncLinkQuery}
+                onSelect={syncLinkQuery}
+                placeholder="Start writing…"
+                spellCheck={false}
+            />
 
-                {mode !== 'write' && (
-                    <div className="note-composer-preview">
-                        {body.trim() === '' && (
-                            <div className="note-composer-preview-empty">Nothing to preview yet — start writing and it appears here.</div>
-                        )}
-                        {/* Filled imperatively by the renderer above; React must never own its
-						    children, or it would wipe the rendered note on the next render. */}
-                        <div ref={previewRef} />
-                    </div>
-                )}
-            </div>
-
-            {linkSuggestions.length > 0 && mode !== 'preview' && (
+            {linkSuggestions.length > 0 && (
                 <div className="note-composer-links">
                     <span className="note-composer-links-label">Link to note</span>
                     {linkSuggestions.map((note, i) => (

@@ -1034,7 +1034,6 @@ export const RightPane = ({ event, onClose, onUpdate, onDateSelect, onDelete, pl
 				<NoteComposer
 					noteName={noteDraft.name}
 					folder={PLANNER_NOTES_FOLDER}
-					app={plugin?.app}
 					notes={vaultNotes}
 					accentColor={accentColor}
 					onCancel={() => setNoteDraft(null)}
