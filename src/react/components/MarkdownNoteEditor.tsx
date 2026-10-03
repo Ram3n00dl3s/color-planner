@@ -4,7 +4,7 @@ import type { Range } from '@codemirror/state';
 import { Decoration, DecorationSet, EditorView, ViewPlugin, WidgetType, drawSelection, keymap, placeholder } from '@codemirror/view';
 import type { ViewUpdate } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
-import { indentUnit, syntaxTree } from '@codemirror/language';
+import { ensureSyntaxTree, indentUnit, syntaxTree } from '@codemirror/language';
 import { markdown, markdownKeymap, markdownLanguage } from '@codemirror/lang-markdown';
 import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
 import type { CompletionContext, CompletionSource } from '@codemirror/autocomplete';
@@ -90,13 +90,20 @@ function buildDecorations(view: EditorView): DecorationSet {
     const { state } = view;
     const doc = state.doc;
 
+    // A change lands *before* the markdown parser has necessarily caught up, and drawing
+    // from a half-parsed tree is exactly what makes a freshly typed `- ` lose its bullet:
+    // the `ListMark` node is not there yet, so nothing replaces the dash. Asking for the
+    // tree to be brought up to date for the visible range first means the glyphs are
+    // always drawn from the markdown as it currently reads.
+    const tree = ensureSyntaxTree(state, view.viewport.to, 50) || syntaxTree(state);
+
     // Markers are only shown on the line the caret is on, the way Obsidian reveals them.
     const caretOnLine = (pos: number) => {
         const line = doc.lineAt(pos);
         return state.selection.ranges.some(range => range.from <= line.to && range.to >= line.from);
     };
 
-    syntaxTree(state).iterate({
+    tree.iterate({
         from: view.viewport.from,
         to: view.viewport.to,
         enter: (node) => {
@@ -193,9 +200,10 @@ const livePreview = ViewPlugin.fromClass(class {
         this.decorations = buildDecorations(view);
     }
     update(update: ViewUpdate) {
-        if (update.docChanged || update.viewportChanged || update.selectionSet) {
-            this.decorations = buildDecorations(update.view);
-        }
+        // Rebuilt on *every* update, not only the ones the document causes: a background
+        // parse finishing arrives as an update of its own, and skipping it would leave the
+        // unfinished tree's decorations on screen until the next keystroke.
+        this.decorations = buildDecorations(update.view);
     }
 }, {
     decorations: value => value.decorations
