@@ -212,7 +212,10 @@ export const RightPane = ({ event, onClose, onUpdate, onDateSelect, onDelete, pl
 	const [openDropdown, setOpenDropdown] = useState<'none' | 'start' | 'end' | 'date' | 'color' | 'timezone' | 'repeat' | 'reminders'>('none');
 	const [isAttachmentDragOver, setIsAttachmentDragOver] = useState(false);
 	const [showCustomRepeat, setShowCustomRepeat] = useState(false);
-	const [isComposingNote, setIsComposingNote] = useState(false);
+	// The composer floats above the calendar, so it carries its own frozen draft: the
+	// note's name and the event it belongs to are captured the moment it opens, and the
+	// user is free to click around underneath without changing either.
+	const [noteDraft, setNoteDraft] = useState<{ name: string; eventId: string } | null>(null);
 	const titleInputRef = useRef<HTMLTextAreaElement>(null);
 	const descTextareaRef = useRef<HTMLTextAreaElement>(null);
 	const currentEventIdRef = useRef<string | null>(null);
@@ -696,28 +699,41 @@ export const RightPane = ({ event, onClose, onUpdate, onDateSelect, onDelete, pl
 	// The one place in the plugin that writes to the vault at all, and it only ever
 	// *creates*: a brand-new file in the plugin's own folder, named with the date and
 	// the event tile's title. No existing note is opened, edited or appended to, and the
-	// note text lives only in the popup until the moment the file is written.
-	const plannerNoteName = buildPlannerNoteName(new Date(), title || event?.title || 'Event');
+	// note text lives only in the floating card until the moment the file is written.
+	const openNoteComposer = () => {
+		if (!event) return;
+		setNoteDraft({
+			name: buildPlannerNoteName(new Date(), title || event.title || 'Event'),
+			eventId: event.id
+		});
+	};
 
 	const handleCreatePlannerNote = async (noteBody: string) => {
-		const file = await createPlannerNote(plugin?.app, { name: plannerNoteName, body: noteBody });
+		const draft = noteDraft;
+		const file = await createPlannerNote(plugin?.app, { name: draft?.name || 'Note', body: noteBody });
+		setNoteDraft(null);
 		if (!file) {
-			setIsComposingNote(false);
 			new Notice('Could not create the note — check the vault folder.');
 			return;
 		}
 
-		// The new note is attached to the event exactly the way the "+ Link note"
-		// picker attaches one: its basename joins the event's linked notes, so it
-		// appears as a chip beneath the event and travels with the event like any
-		// other link. Nothing is written back into the note itself.
-		if (event) {
-			const updatedNotes = Array.from(new Set([...linkedNotes, file.basename]));
-			setLinkedNotes(updatedNotes);
-			onUpdate({ ...event, description, linkedNotes: updatedNotes, todos: eventTodos });
+		// The note is attached to the event the card was *opened* for, not whichever one
+		// happens to be selected now — the card floats, so the user may well have moved
+		// on to another event while writing. The event is resolved live out of the
+		// calendar's own list rather than from a snapshot, so a rename, a description or
+		// a to-do ticked in the meantime is never clobbered. This mirrors the "+ Link
+		// note" picker exactly, and nothing is written back into the note itself.
+		const isCurrent = !!event && event.id === draft?.eventId;
+		const target = isCurrent ? event : (events || []).find(e => e.id === draft?.eventId);
+		if (target) {
+			const base = isCurrent ? linkedNotes : (target.linkedNotes || []);
+			const updatedNotes = Array.from(new Set([...base, file.basename]));
+			if (isCurrent) setLinkedNotes(updatedNotes);
+			onUpdate({ ...target, linkedNotes: updatedNotes });
+			new Notice(`Note created and linked: ${file.path}`);
+		} else {
+			new Notice(`Note created: ${file.path}`);
 		}
-		setIsComposingNote(false);
-		new Notice(`Note created and linked: ${file.path}`);
 	};
 
 	const handleAttachmentDrop = (e: React.DragEvent) => {
@@ -1014,12 +1030,12 @@ export const RightPane = ({ event, onClose, onUpdate, onDateSelect, onDelete, pl
 				/>,
 				document.body
 			)}
-			{isComposingNote && createPortal(
+			{noteDraft && createPortal(
 				<NoteComposer
-					noteName={plannerNoteName}
+					noteName={noteDraft.name}
 					folder={PLANNER_NOTES_FOLDER}
 					accentColor={accentColor}
-					onCancel={() => setIsComposingNote(false)}
+					onCancel={() => setNoteDraft(null)}
 					onCreate={handleCreatePlannerNote}
 				/>,
 				document.body
@@ -1675,7 +1691,7 @@ export const RightPane = ({ event, onClose, onUpdate, onDateSelect, onDelete, pl
 							</button>
 							<button
 								type="button"
-								onClick={() => setIsComposingNote(true)}
+								onClick={openNoteComposer}
 								title={`Write a new note into ${PLANNER_NOTES_FOLDER}`}
 								style={NOTE_ACTION_BTN_STYLE}
 								onMouseEnter={noteActionHoverIn}
