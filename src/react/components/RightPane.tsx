@@ -604,22 +604,39 @@ export const RightPane = ({ event, onClose, onUpdate, onDateSelect, onDelete, pl
 		}
 	};
 
-	// Erasing the title outright would leave a nameless tile, so the "Event" stand-in
+	// Erasing the title outright would leave a nameless event, so the "Event" stand-in
 	// comes back the moment the field is left — the same default a new event is born
-	// with. This runs on blur only, never on change, so it cannot fight the user in the
-	// middle of an edit (deleting a title to retype it stays untouched until they leave);
-	// the emptiness test is a regex, not a `.trim()` on the value.
-	const handleTitleBlur = () => {
+	// with. It is checked from the field's own blur and from a capture-phase
+	// pointerdown on the document, because clicking a spot that cannot take focus (the
+	// grid background) never blurs the textarea — without that second path an erased
+	// title would simply sit there blank. Nothing here runs on change, so it can never
+	// fight the user mid-edit, and the emptiness test is a regex, not a `.trim()`.
+	const restoreTitleIfEmpty = () => {
 		if (!event) return;
-		if (/^\s*$/.test(title)) {
-			setTitle('Event');
-			if (titleInputRef.current) {
-				titleInputRef.current.style.height = 'auto';
-				titleInputRef.current.style.height = `${Math.max(titleInputRef.current.scrollHeight, 38)}px`;
-			}
-			onUpdate({ ...event, title: 'Event' });
+		const el = titleInputRef.current;
+		if (!/^\s*$/.test(el ? el.value : title)) return;
+		setTitle('Event');
+		if (el) {
+			el.style.height = 'auto';
+			el.style.height = `${Math.max(el.scrollHeight, 38)}px`;
 		}
+		onUpdate({ ...event, title: 'Event' });
 	};
+
+	const handleTitleBlur = () => restoreTitleIfEmpty();
+
+	// The listener exists only while the title is empty: the first press anywhere other
+	// than inside the field is the user leaving it, so the stand-in goes back then.
+	useEffect(() => {
+		if (!event || !/^\s*$/.test(title)) return;
+		const onPointerDown = (e: PointerEvent) => {
+			const el = titleInputRef.current;
+			if (!el || e.target === el) return;
+			restoreTitleIfEmpty();
+		};
+		document.addEventListener('pointerdown', onPointerDown, true);
+		return () => document.removeEventListener('pointerdown', onPointerDown, true);
+	}, [event, title]);
 
 	const handleDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
 		const newDesc = e.target.value;
