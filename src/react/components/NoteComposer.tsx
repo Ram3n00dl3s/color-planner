@@ -15,6 +15,11 @@ interface NoteComposerProps {
 // still be grabbed again.
 const HEAD_KEEP_VISIBLE = 96;
 
+// The floor for a manual resize: below this the header, the writing surface and the
+// footer start fighting for room.
+const MIN_CARD_W = 360;
+const MIN_CARD_H = 240;
+
 /**
  * A quiet, full-size writing surface: the note as it *feels* before it exists as a
  * file. It deliberately knows nothing about the vault — it hands the typed body to
@@ -23,8 +28,8 @@ const HEAD_KEEP_VISIBLE = 96;
  * The card is deliberately NOT modal. There is no backdrop and nothing outside the card
  * captures a click, so the calendar, the timer column and the sidebars all stay fully
  * usable while a note is being written; the user can even click another event and come
- * back. The header is the drag handle, so the card can be slid out of the way instead of
- * having to be closed.
+ * back. The header is the drag handle and the bottom-right corner is the resize grip, so
+ * the card can be moved and sized out of the way instead of having to be closed.
  */
 export const NoteComposer = ({ noteName, folder, accentColor, onCancel, onCreate }: NoteComposerProps) => {
     const [body, setBody] = useState('');
@@ -32,7 +37,10 @@ export const NoteComposer = ({ noteName, folder, accentColor, onCancel, onCreate
     // `null` means "centred", which the stylesheet does with a translate; the first drag
     // measures the card and switches to absolute coordinates from there.
     const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+    // Likewise `null` means "the stylesheet's default size" until the grip is used.
+    const [size, setSize] = useState<{ w: number; h: number } | null>(null);
     const [isDragging, setIsDragging] = useState(false);
+    const [isResizing, setIsResizing] = useState(false);
     const bodyRef = useRef<HTMLTextAreaElement | null>(null);
     const cardRef = useRef<HTMLDivElement | null>(null);
 
@@ -80,7 +88,7 @@ export const NoteComposer = ({ noteName, folder, accentColor, onCancel, onCreate
         return () => window.removeEventListener('keydown', onKey, true);
     }, [onCancel]);
 
-    // A dragged card can never be lost: the header always keeps a strip on screen,
+    // A moved card can never be lost: the header always keeps a strip on screen,
     // whatever the window size.
     const clampToWindow = (next: { x: number; y: number }) => {
         const el = cardRef.current;
@@ -93,12 +101,28 @@ export const NoteComposer = ({ noteName, folder, accentColor, onCancel, onCreate
         };
     };
 
+    // A resize can never push the card off the window either: the grip stops at the
+    // near edge, and the floors keep the writing surface usable.
+    const clampSize = (next: { w: number; h: number }) => {
+        const rect = cardRef.current?.getBoundingClientRect();
+        const maxW = Math.max(MIN_CARD_W, (rect ? window.innerWidth - rect.left : window.innerWidth) - 12);
+        const maxH = Math.max(MIN_CARD_H, (rect ? window.innerHeight - rect.top : window.innerHeight) - 12);
+        return {
+            w: Math.max(MIN_CARD_W, Math.min(next.w, maxW)),
+            h: Math.max(MIN_CARD_H, Math.min(next.h, maxH))
+        };
+    };
+
+    // One listener for the life of the card: a window that shrinks re-fits both the
+    // card's place and its size, so it is never left hanging off screen.
     useEffect(() => {
-        if (!pos) return;
-        const onResize = () => setPos(prev => (prev ? clampToWindow(prev) : prev));
+        const onResize = () => {
+            setPos(prev => (prev ? clampToWindow(prev) : prev));
+            setSize(prev => (prev ? clampSize(prev) : prev));
+        };
         window.addEventListener('resize', onResize);
         return () => window.removeEventListener('resize', onResize);
-    }, [pos]);
+    }, []);
 
     // The header is the handle. A press that lands on a control inside it — the close
     // button — is left to that control, so the card is never dragged by accident.
@@ -132,10 +156,42 @@ export const NoteComposer = ({ noteName, folder, accentColor, onCancel, onCreate
         window.addEventListener('pointerup', onUp);
     };
 
+    // The bottom-right grip resizes. The top-left corner is pinned first, so the card
+    // grows away from the pointer exactly as the corner suggests — and because the pin
+    // happens at the measured rect, the first pixel of the drag moves nothing.
+    const handleResizeStart = (e: React.PointerEvent) => {
+        if (e.button !== 0) return;
+        const el = cardRef.current;
+        if (!el) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const rect = el.getBoundingClientRect();
+        const startX = e.clientX;
+        const startY = e.clientY;
+        setPos({ x: rect.left, y: rect.top });
+        setSize({ w: rect.width, h: rect.height });
+        setIsResizing(true);
+
+        const onMove = (moveEvent: PointerEvent) => {
+            setSize(clampSize({
+                w: rect.width + (moveEvent.clientX - startX),
+                h: rect.height + (moveEvent.clientY - startY)
+            }));
+        };
+        const onUp = () => {
+            setIsResizing(false);
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+        };
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+    };
+
     return createPortal(
         <div
             ref={cardRef}
-            className={`note-composer${isDragging ? ' is-dragging' : ''}`}
+            className={`note-composer${isDragging ? ' is-dragging' : ''}${isResizing ? ' is-resizing' : ''}`}
             role="dialog"
             aria-modal="false"
             aria-label={noteName}
@@ -143,7 +199,8 @@ export const NoteComposer = ({ noteName, folder, accentColor, onCancel, onCreate
                 ...(accentColor ? { ['--sleek-accent' as any]: accentColor } : {}),
                 ...(pos
                     ? { left: `${pos.x}px`, top: `${pos.y}px` }
-                    : { left: '50%', top: '50%', transform: 'translate(-50%, -50%)' })
+                    : { left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }),
+                ...(size ? { width: `${size.w}px`, height: `${size.h}px` } : {})
             } as React.CSSProperties}
         >
             <div className="note-composer-head" onPointerDown={handleDragStart} title="Drag to move">
@@ -178,13 +235,27 @@ export const NoteComposer = ({ noteName, folder, accentColor, onCancel, onCreate
             />
 
             <div className="note-composer-foot">
-                <span className="note-composer-hint">Drag the header to move · Esc closes · ⌘↵ creates</span>
+                <span className="note-composer-hint">Drag the header to move · corner to resize · Esc closes · ⌘↵ creates</span>
                 <div className="note-composer-buttons">
                     <button type="button" className="note-composer-btn" onClick={onCancel}>Cancel</button>
                     <button type="button" className="note-composer-btn is-primary" onClick={() => commitRef.current()} disabled={isSaving}>
                         Create note
                     </button>
                 </div>
+            </div>
+
+            {/* The grip is the only resize affordance, so it stays quiet: two hairlines of
+			    muted ink in the very corner, a little clearer on hover and while dragging. */}
+            <div
+                className="note-composer-grip"
+                onPointerDown={handleResizeStart}
+                title="Drag to resize"
+                aria-hidden="true"
+            >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+                    <line x1="11" y1="1" x2="1" y2="11"></line>
+                    <line x1="11" y1="6" x2="6" y2="11"></line>
+                </svg>
             </div>
         </div>,
         document.body

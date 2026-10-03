@@ -5240,9 +5240,39 @@ body.sleek-tile-dragging .timer-zone * {
 }
 
 .note-composer.is-dragging,
-.note-composer.is-dragging * {
+.note-composer.is-dragging *,
+.note-composer.is-resizing,
+.note-composer.is-resizing * {
 	user-select: none;
 	transition: none;
+}
+
+/* The bottom-right corner is the resize grip — the card's only one, so it stays a
+   quiet pair of hairlines in muted ink that only firm up on hover or mid-drag. */
+.note-composer-grip {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	width: 18px;
+	height: 18px;
+	display: flex;
+	align-items: flex-end;
+	justify-content: flex-end;
+	color: var(--text-faint, var(--text-muted));
+	opacity: 0.45;
+	cursor: nwse-resize;
+	touch-action: none;
+	transition: opacity 0.15s ease;
+}
+
+.note-composer-grip svg {
+	display: block;
+	margin: 0 3px 3px 0;
+}
+
+.note-composer-grip:hover,
+.note-composer.is-resizing .note-composer-grip {
+	opacity: 0.9;
 }
 
 .note-composer-glyph {
@@ -5348,12 +5378,14 @@ body.sleek-tile-dragging .timer-zone * {
 	background: var(--text-selection, rgba(255, 255, 255, 0.2));
 }
 
+/* The extra right padding keeps the action buttons clear of the corner grip, so a
+   press near the corner is always a resize and never a stray click on "Create note". */
 .note-composer-foot {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
 	gap: 12px;
-	padding: 12px 14px;
+	padding: 12px 22px 12px 14px;
 	border-top: 1px solid var(--background-modifier-border);
 	flex-shrink: 0;
 }
