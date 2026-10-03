@@ -1,12 +1,14 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import type { EditorView } from '@codemirror/view';
+import { MarkdownNoteEditor } from './MarkdownNoteEditor';
 
 interface NoteComposerProps {
     /** The finished note name, shown as the document's title (date + event title). */
     noteName: string;
     /** The vault folder the note will land in, shown as a quiet path line. */
     folder: string;
-    /** The vault's notes, for the `[[` suggestion strip. */
+    /** The vault's notes, offered as `[[` suggestions. */
     notes?: { basename: string; path: string }[];
     accentColor?: string | null;
     onCancel: () => void;
@@ -22,19 +24,18 @@ const HEAD_KEEP_VISIBLE = 96;
 const MIN_CARD_W = 360;
 const MIN_CARD_H = 240;
 
-const MAX_LINK_SUGGESTIONS = 6;
-
 /**
  * A quiet, full-size writing surface: the note as it *feels* before it exists as a file.
  * It deliberately knows nothing about the vault's *files* — it hands the typed body to
  * `onCreate`, which performs the one and only write.
  *
- * What it does carry is Obsidian's understanding of markdown as it is being written:
- * Enter continues a list or a task marker (and a bare marker ends the list), Backspace on
- * a bare marker takes the marker away, Tab and Shift+Tab indent and outdent, ⌘B / ⌘I /
- * ⌘K wrap and unwrap the selection, and `[[` opens the vault's own notes as a suggestion
- * strip. Everything is still stored as plain markdown, so the note reads exactly like any
- * other in the vault.
+ * What it does carry is Obsidian's understanding of markdown, because the writing
+ * surface underneath is CodeMirror — the same editor engine Obsidian runs. Typing `- `
+ * draws a bullet, `- [ ] ` draws a checkbox, `# ` becomes a heading, `**bold**` turns
+ * bold, and the markers step out of the way until the caret reaches their line. Enter
+ * continues a list, Backspace clears a bare marker, Tab nests, ⌘B / ⌘I / ⌘K wrap the
+ * selection and `[[` suggests the vault's own notes. None of that touches the document,
+ * which stays plain markdown from the first keystroke to the file on disk.
  *
  * The card is deliberately NOT modal. There is no backdrop and nothing outside the card
  * captures a click, so the calendar, the timer column and the sidebars all stay fully
@@ -42,7 +43,6 @@ const MAX_LINK_SUGGESTIONS = 6;
  * bottom-right corner is the resize grip.
  */
 export const NoteComposer = ({ noteName, folder, notes, accentColor, onCancel, onCreate }: NoteComposerProps) => {
-    const [body, setBody] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     // `null` means "centred", which the stylesheet does with a translate; the first drag
     // measures the card and switches to absolute coordinates from there.
@@ -51,316 +51,48 @@ export const NoteComposer = ({ noteName, folder, notes, accentColor, onCancel, o
     const [size, setSize] = useState<{ w: number; h: number } | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
-    const [linkQuery, setLinkQuery] = useState<string | null>(null);
-    const [linkIdx, setLinkIdx] = useState(0);
 
-    const bodyRef = useRef<HTMLTextAreaElement | null>(null);
     const cardRef = useRef<HTMLDivElement | null>(null);
-    // A programmatic edit has to move the caret, but React re-writes `value` (and with it
-    // the caret) on the render that follows — so the target selection is parked here and
-    // restored in a layout effect, before the browser paints.
-    const pendingSelRef = useRef<{ start: number; end: number } | null>(null);
-    const lastQueryRef = useRef<string | null>(null);
+    // The editor owns the document; the card only ever reads it at the moment of saving.
+    const viewRef = useRef<EditorView | null>(null);
 
-    // The editor's key handling runs in a capture listener that reads the live DOM, so it
-    // needs the suggestion list without closing over stale state.
-    const linkSuggestionsRef = useRef<{ basename: string; path: string }[]>([]);
-    const linkIdxRef = useRef(0);
-    const linkOpenRef = useRef(false);
-
-    // A stable handle for the window keydown listener below, so committing with the
-    // keyboard does not tear the listener down and rebuild it on every keystroke.
-    const commitRef = useRef<() => void>(() => { });
     const commit = async () => {
         if (isSaving) return;
+        const text = viewRef.current?.state.doc.toString() ?? '';
         setIsSaving(true);
         try {
-            await onCreate(body);
+            await onCreate(text);
         } finally {
             setIsSaving(false);
         }
     };
-    commitRef.current = () => { void commit(); };
 
-    // --- Markdown behaviour on the writing surface ---------------------------------
-
-    const applyEdit = (next: string, selStart: number, selEnd: number = selStart) => {
-        pendingSelRef.current = { start: selStart, end: selEnd };
-        setBody(next);
-    };
-
-    // Recomputes the `[[` context from the live field. The index is only reset when the
-    // query itself changed, so ↑/↓ navigation is not undone by the keyup that follows it.
-    const syncLinkQuery = () => {
-        const el = bodyRef.current;
-        if (!el) return;
-        const caret = el.selectionStart ?? 0;
-        let query: string | null = null;
-        if (el.selectionEnd === caret) {
-            const open = el.value.lastIndexOf('[[', caret - 1);
-            if (open !== -1) {
-                const closed = el.value.indexOf(']]', open + 2);
-                const candidate = el.value.slice(open + 2, caret);
-                if ((closed === -1 || closed >= caret) && !candidate.includes('\n')) query = candidate;
-            }
-        }
-        if (lastQueryRef.current !== query) {
-            lastQueryRef.current = query;
-            setLinkIdx(0);
-        }
-        setLinkQuery(query);
-    };
-
-    // ⌘B / ⌘I / ⌘K. A selection that is already wrapped is unwrapped, so the shortcuts
-    // toggle exactly as they do in Obsidian.
-    const toggleWrap = (open: string, close: string) => {
-        const el = bodyRef.current;
-        if (!el) return;
-        const value = el.value;
-        let start = el.selectionStart;
-        let end = el.selectionEnd;
-
-        if (start === end) {
-            if (open === '[[') {
-                // A bare caret turns the whole line into a note link.
-                start = value.lastIndexOf('\n', start - 1) + 1;
-                const lineEnd = value.indexOf('\n', start);
-                end = lineEnd === -1 ? value.length : lineEnd;
-            } else {
-                // Otherwise emphasis applies to the word under the caret.
-                const isWord = (c: string | undefined) => !!c && !/\s/.test(c);
-                while (start > 0 && isWord(value[start - 1])) start--;
-                while (end < value.length && isWord(value[end])) end++;
-            }
-        }
-
-        const inner = value.slice(start, end);
-        const before = value.slice(0, start);
-        const after = value.slice(end);
-
-        if (inner.length >= open.length + close.length && inner.startsWith(open) && inner.endsWith(close)) {
-            const stripped = inner.slice(open.length, inner.length - close.length);
-            applyEdit(before + stripped + after, start, start + stripped.length);
-            return;
-        }
-        if (before.endsWith(open) && after.startsWith(close)) {
-            const trimmedBefore = before.slice(0, before.length - open.length);
-            const trimmedAfter = after.slice(close.length);
-            applyEdit(trimmedBefore + inner + trimmedAfter, start - open.length, start - open.length + inner.length);
-            return;
-        }
-        applyEdit(before + open + inner + close + after, start + open.length, start + open.length + inner.length);
-    };
-
-    // Matches the marker that opens a list item — bullet or number, with an optional task
-    // box — as Obsidian understands it. Used by Enter and Backspace alike.
-    const MARKER_RE = /^([ \t]*)(?:([-*+])|(\d+)([.)]))[ \t]+(?:(\[[ xX]\])[ \t]+)?/;
-
-    // Enter continues a list or a task marker, and a bare marker simply ends the list —
-    // the same rules Obsidian's own editor applies. Mid-line, the browser's plain newline
-    // is left alone.
-    const handleEnter = (el: HTMLTextAreaElement) => {
-        const value = el.value;
-        const caret = el.selectionStart;
-        if (el.selectionEnd !== caret) return false;
-        if (value.indexOf('\n', caret) !== -1) return false;
-
-        const lineStart = value.lastIndexOf('\n', caret - 1) + 1;
-        const line = value.slice(lineStart, caret);
-        const match = MARKER_RE.exec(line);
-        if (!match) return false;
-
-        const rest = line.slice(match[0].length);
-        if (!rest) {
-            applyEdit(value.slice(0, lineStart) + value.slice(caret), lineStart);
-            return true;
-        }
-
-        const indent = match[1];
-        const marker = match[2]
-            ? `${indent}${match[2]} `
-            : `${indent}${(match[3] ? Number(match[3]) + 1 : 1)}${match[4] || '.'} `;
-        const continuation = match[5] ? `${marker}[ ] ` : marker;
-        const insert = `\n${continuation}`;
-        applyEdit(value.slice(0, caret) + insert + value.slice(caret), caret + insert.length);
-        return true;
-    };
-
-    // Backspace on a marker with nothing behind it takes the marker away rather than
-    // eating a character, which is how an Obsidian list collapses back to plain text.
-    const handleBackspace = (el: HTMLTextAreaElement) => {
-        const value = el.value;
-        const caret = el.selectionStart;
-        if (el.selectionEnd !== caret) return false;
-
-        const lineStart = value.lastIndexOf('\n', caret - 1) + 1;
-        const lineEndIndex = value.indexOf('\n', caret);
-        const lineEnd = lineEndIndex === -1 ? value.length : lineEndIndex;
-        if (!/^[ \t]*(?:[-*+]|\d+[.)])[ \t]+(?:\[[ xX]\][ \t]+)?$/.test(value.slice(lineStart, lineEnd))) return false;
-
-        applyEdit(value.slice(0, lineStart) + value.slice(lineEnd), lineStart);
-        return true;
-    };
-
-    // Tab indents — the caret's line, or every line the selection touches — and Shift+Tab
-    // takes one level back off.
-    const handleTab = (el: HTMLTextAreaElement, outdent: boolean) => {
-        const value = el.value;
-        const start = el.selectionStart;
-        const end = el.selectionEnd;
-
-        if (start === end && !outdent) {
-            applyEdit(value.slice(0, start) + '\t' + value.slice(start), start + 1);
-            return;
-        }
-
-        const from = value.lastIndexOf('\n', start - 1) + 1;
-        const lineEnd = value.indexOf('\n', end);
-        const to = lineEnd === -1 ? value.length : lineEnd;
-        const block = value
-            .slice(from, to)
-            .split('\n')
-            .map(line => (outdent ? line.replace(/^(\t| {1,4})/, '') : `\t${line}`))
-            .join('\n');
-        applyEdit(value.slice(0, from) + block + value.slice(to), from, from + block.length);
-    };
-
-    // The `[[` strip only offers vault notes that are already there; it never creates a
-    // note, it only writes the link text.
-    const linkSuggestions = React.useMemo(() => {
-        if (linkQuery === null || !notes || notes.length === 0) return [];
-        const query = linkQuery.toLowerCase();
-        return notes
-            .filter(n => n.basename.toLowerCase().includes(query) || n.path.toLowerCase().includes(query))
-            .slice(0, MAX_LINK_SUGGESTIONS);
-    }, [linkQuery, notes]);
-
-    // Mirrored into refs for the capture listener, which must not close over stale state.
-    linkSuggestionsRef.current = linkSuggestions;
-    linkIdxRef.current = linkIdx;
-    linkOpenRef.current = linkSuggestions.length > 0;
-
-    const acceptSuggestion = (index?: number) => {
-        const el = bodyRef.current;
-        const list = linkSuggestionsRef.current;
-        const pick = list[index ?? linkIdxRef.current] || list[0];
-        if (!el || !pick) return;
-        const value = el.value;
-        const caret = el.selectionStart;
-        const open = value.lastIndexOf('[[', caret - 1);
-        if (open === -1) return;
-        const insert = `${pick.basename}]]`;
-        const next = `${value.slice(0, open + 2)}${insert}${value.slice(caret)}`;
-        lastQueryRef.current = null;
-        setLinkQuery(null);
-        applyEdit(next, open + 2 + insert.length);
-    };
-
-    // Carries out an edit and then puts the caret back where the edit asked for it, before
-    // the browser has a chance to paint the jump.
-    useLayoutEffect(() => {
-        const pending = pendingSelRef.current;
-        if (!pending) return;
-        pendingSelRef.current = null;
-        const el = bodyRef.current;
-        if (!el) return;
-        el.setSelectionRange(pending.start, pending.end);
-        syncLinkQuery();
-    });
-
-    // The caret starts at the end of an empty field — never a selection, which would make
-    // the first keystroke replace nothing and simply feel wrong.
-    useEffect(() => {
-        const el = bodyRef.current;
-        if (!el) return;
-        el.focus();
-        el.setSelectionRange(el.value.length, el.value.length);
-    }, []);
-
-    // Every key the card owns is handled here, in the capture phase, for two reasons: a
-    // stop-propagation here keeps Obsidian's hotkey layer out of the card entirely, and
-    // none of Obsidian's global shortcuts can eat a space mid-sentence. Events from
-    // outside the card are left completely alone, because the card floats and the user may
-    // well be typing in the calendar underneath.
+    // Escape backs out and ⌘/Ctrl+Enter commits. Those two are the only keys the card
+    // takes for itself: everything else is left to CodeMirror, which is why the note
+    // editor behaves exactly like an editor and not like a text field.
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             const card = cardRef.current;
             const target = e.target as Node | null;
             if (!card || !target || !card.contains(target)) return;
-            e.stopPropagation();
-
-            const el = bodyRef.current;
-            const inBody = !!el && target === el;
-            const mod = e.metaKey || e.ctrlKey;
-
-            // The suggestion strip wins while it is open, so its keys never leak into the
-            // text or into the card's own shortcuts.
-            if (inBody && linkOpenRef.current) {
-                const count = linkSuggestionsRef.current.length;
-                if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    setLinkIdx(prev => (prev + 1) % count);
-                    return;
-                }
-                if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    setLinkIdx(prev => (prev - 1 + count) % count);
-                    return;
-                }
-                if (e.key === 'Enter' || e.key === 'Tab') {
-                    e.preventDefault();
-                    acceptSuggestion();
-                    return;
-                }
-                if (e.key === 'Escape') {
-                    e.preventDefault();
-                    lastQueryRef.current = null;
-                    setLinkQuery(null);
-                    return;
-                }
-            }
-
             if (e.key === 'Escape') {
+                // With the `[[` suggestions open, Escape closes those first — exactly as it
+                // would inside the editor.
+                if (card.querySelector('.cm-tooltip-autocomplete')) return;
                 e.preventDefault();
+                e.stopPropagation();
                 onCancel();
                 return;
             }
-            if (mod && e.key === 'Enter') {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
                 e.preventDefault();
-                commitRef.current();
-                return;
-            }
-            if (inBody && mod && (e.key === 'b' || e.key === 'B')) {
-                e.preventDefault();
-                toggleWrap('**', '**');
-                return;
-            }
-            if (inBody && mod && (e.key === 'i' || e.key === 'I')) {
-                e.preventDefault();
-                toggleWrap('*', '*');
-                return;
-            }
-            if (inBody && mod && (e.key === 'k' || e.key === 'K')) {
-                e.preventDefault();
-                toggleWrap('[[', ']]');
-                return;
-            }
-            if (inBody && e.key === 'Enter' && !e.shiftKey) {
-                if (handleEnter(el)) e.preventDefault();
-                return;
-            }
-            if (inBody && e.key === 'Backspace') {
-                if (handleBackspace(el)) e.preventDefault();
-                return;
-            }
-            if (inBody && e.key === 'Tab') {
-                e.preventDefault();
-                handleTab(el, e.shiftKey);
+                e.stopPropagation();
+                void commit();
             }
         };
         window.addEventListener('keydown', onKey, true);
         return () => window.removeEventListener('keydown', onKey, true);
-    }, [onCancel]);
+    }, [onCancel, isSaving]);
 
     // --- Moving and sizing ---------------------------------------------------------
 
@@ -500,45 +232,17 @@ export const NoteComposer = ({ noteName, folder, notes, accentColor, onCancel, o
                 </button>
             </div>
 
-            <textarea
-                ref={bodyRef}
-                className="note-composer-body"
-                value={body}
-                onChange={(e) => { setBody(e.target.value); syncLinkQuery(); }}
-                onKeyDown={(e) => e.stopPropagation()}
-                onKeyUp={(e) => { if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') syncLinkQuery(); }}
-                onClick={syncLinkQuery}
-                onSelect={syncLinkQuery}
-                placeholder="Start writing…"
-                spellCheck={false}
+            <MarkdownNoteEditor
+                notes={notes}
+                ariaLabel={noteName}
+                onReady={(view) => { viewRef.current = view; }}
             />
-
-            {linkSuggestions.length > 0 && (
-                <div className="note-composer-links">
-                    <span className="note-composer-links-label">Link to note</span>
-                    {linkSuggestions.map((note, i) => (
-                        <button
-                            key={note.path}
-                            type="button"
-                            className={`note-composer-link${i === linkIdx ? ' is-selected' : ''}`}
-                            title={note.path}
-                            onMouseEnter={() => setLinkIdx(i)}
-                            // The press never leaves the field, so the caret — and the query
-                            // the suggestion is replacing — are still exactly where they were.
-                            onMouseDown={(e) => { e.preventDefault(); setLinkIdx(i); acceptSuggestion(i); }}
-                        >
-                            {note.basename}
-                        </button>
-                    ))}
-                    <span className="note-composer-links-hint">↑↓ · ↵</span>
-                </div>
-            )}
 
             <div className="note-composer-foot">
                 <span className="note-composer-hint">⌘B bold · ⌘I italic · ⌘K note link · ⌘↵ creates</span>
                 <div className="note-composer-buttons">
                     <button type="button" className="note-composer-btn" onClick={onCancel}>Cancel</button>
-                    <button type="button" className="note-composer-btn is-primary" onClick={() => commitRef.current()} disabled={isSaving}>
+                    <button type="button" className="note-composer-btn is-primary" onClick={() => void commit()} disabled={isSaving}>
                         Create note
                     </button>
                 </div>
