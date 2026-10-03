@@ -2154,7 +2154,10 @@ export const MainGrid = ({
 			if (hasDragged && finalDeltaY > dragThreshold) {
 				setDraftEvent(prev => {
 					if (prev) {
-						const newEvent = { ...prev, id: Math.random().toString(36).substr(2, 9), title: prev.title || 'Event' };
+						// Born untitled when the user dragged without naming it: the pane shows its
+						// "Add an event..." placeholder and the tile keeps its own "Event" fallback,
+						// so nothing has to be written into the event to hold either together.
+						const newEvent = { ...prev, id: Math.random().toString(36).substr(2, 9), title: prev.title || '' };
 						setEvents(curr => [...curr, newEvent]);
 						onEventSelect(newEvent);
 					}
@@ -2565,7 +2568,9 @@ export const MainGrid = ({
 
 		const newEvent: CalendarEvent = {
 			id: Math.random().toString(36).substring(2, 9),
-			title: 'Event',
+			// Untitled on purpose: the right pane's placeholder names it, and the tile shows
+			// its own "Event" fallback until the user types something.
+			title: '',
 			startTime,
 			endTime,
 			colorTheme: defaultEventColor,

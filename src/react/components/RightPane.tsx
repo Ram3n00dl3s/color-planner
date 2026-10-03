@@ -625,54 +625,10 @@ export const RightPane = ({ event, onClose, onUpdate, onDateSelect, onDelete, pl
 		onUpdate({ ...event, title: e.target.value });
 	};
 
-	// A brand-new event is titled "Event" so its tile never renders blank, but that
-	// stand-in is in the way the instant the user goes to rename it. Clear it on focus
-	// so whatever they type from there is the real title. Compared with a regex rather
-	// than `.trim()` so nothing rewrites the value while typing. The field also carries
-	// no placeholder: the only text ever seen in it is a title the user can actually
-	// keep, so a dim hint can never be mistaken for a default that has to be deleted.
-	const handleTitleFocus = () => {
-		if (!event) return;
-		if (/^\s*(event|new event)\s*$/i.test(title || '')) {
-			setTitle('');
-			if (titleInputRef.current) titleInputRef.current.style.height = 'auto';
-			onUpdate({ ...event, title: '' });
-		}
-	};
-
-	// Erasing the title outright would leave a nameless event, so the "Event" stand-in
-	// comes back the moment the field is left — the same default a new event is born
-	// with. It is checked from the field's own blur and from a capture-phase
-	// pointerdown on the document, because clicking a spot that cannot take focus (the
-	// grid background) never blurs the textarea — without that second path an erased
-	// title would simply sit there blank. Nothing here runs on change, so it can never
-	// fight the user mid-edit, and the emptiness test is a regex, not a `.trim()`.
-	const restoreTitleIfEmpty = () => {
-		if (!event) return;
-		const el = titleInputRef.current;
-		if (!/^\s*$/.test(el ? el.value : title)) return;
-		setTitle('Event');
-		if (el) {
-			el.style.height = 'auto';
-			el.style.height = `${Math.max(el.scrollHeight, 38)}px`;
-		}
-		onUpdate({ ...event, title: 'Event' });
-	};
-
-	const handleTitleBlur = () => restoreTitleIfEmpty();
-
-	// The listener exists only while the title is empty: the first press anywhere other
-	// than inside the field is the user leaving it, so the stand-in goes back then.
-	useEffect(() => {
-		if (!event || !/^\s*$/.test(title)) return;
-		const onPointerDown = (e: PointerEvent) => {
-			const el = titleInputRef.current;
-			if (!el || e.target === el) return;
-			restoreTitleIfEmpty();
-		};
-		document.addEventListener('pointerdown', onPointerDown, true);
-		return () => document.removeEventListener('pointerdown', onPointerDown, true);
-	}, [event, title]);
+	// An empty title is left empty. The field shows its own "Add an event..." placeholder
+	// while it is blank, and the tile on the grid keeps its "Event" fallback, so neither
+	// of them has to be held up by writing text into the event — and nothing here can
+	// ever fight the user mid-edit.
 
 	const handleDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
 		const newDesc = e.target.value;
@@ -1085,13 +1041,16 @@ export const RightPane = ({ event, onClose, onUpdate, onDateSelect, onDelete, pl
 
 			<div className="pane-content">
 				<div className="pane-section title-section" style={{ position: 'relative' }}>
+					{/* The pane's own heading, set exactly as "To Do" and the rows below are. */}
+					<div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', padding: '0 4px' }}>
+						<span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-normal)', letterSpacing: '0.2px' }}>Event</span>
+					</div>
 					<textarea
 						ref={titleInputRef}
 						className="pane-title-input"
 						value={title}
 						onChange={handleTitleChange}
-						onFocus={handleTitleFocus}
-						onBlur={handleTitleBlur}
+						placeholder="Add an event..."
 						rows={1}
 						onKeyDown={(e) => {
 							e.stopPropagation();

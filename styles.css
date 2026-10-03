@@ -105,12 +105,24 @@
 	color: var(--text-normal) !important;
 }
 
-/* Neutral text selection across all inputs */
+/* Obsidian's own `--text-selection` is an accent tint — purple in the default theme —
+   which is exactly the wash this calendar must never show. Redefining it inside the app
+   makes every existing `var(--text-selection, …)` rule neutral at once, and the floating
+   note card is portalled outside the app, so it carries the same definition. */
+.sleek-calendar-app,
+.sleek-right-panel-wrapper,
+.sleek-right-pane,
+.note-composer {
+	--text-selection: rgba(128, 128, 128, 0.4);
+}
+
+/* Neutral text selection across all inputs — a plain grey, so it can never be mistaken
+   for an accent, and it reads on both a light and a dark theme. */
 .sleek-calendar-app ::selection,
 .sleek-right-panel-wrapper ::selection,
 .sleek-right-pane ::selection,
 .todo-inline-edit-input::selection {
-	background-color: var(--text-selection, rgba(255, 255, 255, 0.2)) !important;
+	background-color: rgba(128, 128, 128, 0.4) !important;
 	color: inherit !important;
 }
 
@@ -1139,6 +1151,17 @@
 	display: none !important;
 	width: 0 !important;
 	height: 0 !important;
+}
+
+/* The title's placeholder borrows the to-do row's voice — the same 14px at the same
+   muted ink as "Add a to-do..." — so an empty pane reads as one quiet set of prompts
+   rather than a title shouting next to a whisper. */
+.pane-title-input::placeholder {
+	font-size: 14px;
+	font-weight: 400;
+	line-height: 1.45;
+	color: var(--text-faint, var(--text-muted));
+	opacity: 1;
 }
 
 .time-section {
